@@ -79,17 +79,29 @@ thumbnail rail): `ui-reference.png` (repo root).
 - **LLM**: OpenAI SDK, server-side only (Next.js Route Handlers under
   `app/api/`). `OPENAI_API_KEY` is read only in server code, never shipped to
   the client bundle. Default model: `gpt-4o` (see `.env.local.example`).
-- **Testing**: Vitest (`vitest.config.mts`) for schema/store unit tests.
-  `npm run test`.
-- **Drag/reorder** (Phase 2): `dnd-kit`.
+- **Testing**: Vitest (`vitest.config.mts`, `environment: "jsdom"`) for
+  schema/store unit tests. `npm run test`.
+- **Drag/reorder**: `@dnd-kit/core` + `@dnd-kit/sortable` — in use since
+  Phase 2 (`components/deck/SlideThumbnail.tsx` + `ThumbnailRail.tsx`).
+- **Manual text editing**: `components/deck/InlineEditable.tsx` — a
+  contentEditable div rendered once via `dangerouslySetInnerHTML` (HTML-
+  escaped) for SSR/first-paint, then updated imperatively via a ref on later
+  value changes so React never re-diffs contentEditable children. Every
+  field (title/subtitle/bullets/paragraphs/table cells) commits through the
+  store's `updateSlide` on blur/Enter; Escape reverts. Used by
+  `EditableContentBlock.tsx` (replaced the old read-only
+  `ContentBlockRenderer.tsx`, which was deleted).
+- **Persistence**: `localStorage` via Zustand `persist` middleware, in use
+  since Phase 2 (`store/deckStore.ts`, key `deck-lab:deck`). Uses
+  `skipHydration: true` so SSR/first paint always match the in-code seed
+  deck; `components/deck/DeckHydrator.tsx` calls `persist.rehydrate()` once
+  on mount to load any saved deck. No backend DB (per O2).
 - **Charts** (Phase 6): Recharts.
 - **Images** (Phase 6): OpenAI image generation via a server route, with a
   graceful placeholder fallback.
 - **Export** (Phase 7): CSS print stylesheet baseline (`window.print()` →
   PDF). `pptxgenjs` as a stretch add-on in the same phase if time permits.
 - **Deployment**: Vercel.
-- **Persistence**: `localStorage` via Zustand `persist` middleware (Phase 2
-  onward). No backend DB (per O2).
 
 ### Current Slide Schema Shape (`lib/schema/slide.ts`)
 
@@ -117,21 +129,21 @@ manual testing checklist, automated verification, DoD) lives in
 `phases.txt` — treat that as the authoritative per-phase spec. This table is
 the status tracker.
 
-| Phase | Name                                                              | Status                                                                                                          |
-| ----- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| 0     | Project Scaffolding & Shell UI                                    | ✅ Done — committed `chore: scaffold Next.js app with two-pane shell UI`, pushed to `origin/main`               |
-| 1     | Slide Schema & Deck State Model                                   | ✅ Done — committed `feat: add slide schema and deck state model`, **not yet pushed**; user is manually testing |
-| 2     | Manual Editing (Complete, AI-Free Product)                        | Not started                                                                                                     |
-| 3     | AI Initial Generation (two-phase gen, phase 1)                    | Not started                                                                                                     |
-| 4     | Agentic Tool-Use & Diff-Based Refinement (two-phase gen, phase 2) | Not started                                                                                                     |
-| 5     | Streaming                                                         | Not started                                                                                                     |
-| 6     | Rich Content: Images, Charts, Tables                              | Not started                                                                                                     |
-| 7     | Export                                                            | Not started                                                                                                     |
-| 8     | Unified Undo/Redo (Nice to Have)                                  | Not started                                                                                                     |
-| 9     | Themes / Templates (Nice to Have)                                 | Not started                                                                                                     |
-| 10    | Context Window Management (Nice to Have)                          | Not started                                                                                                     |
-| 11    | Multiple Presentation Projects (Nice to Have)                     | Not started                                                                                                     |
-| 12    | Deployment, README, and Final Polish                              | Not started                                                                                                     |
+| Phase | Name                                                              | Status                                                                                                                            |
+| ----- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | Project Scaffolding & Shell UI                                    | ✅ Done — committed `chore: scaffold Next.js app with two-pane shell UI`, pushed to `origin/main`                                 |
+| 1     | Slide Schema & Deck State Model                                   | ✅ Done — committed `feat: add slide schema and deck state model`, pushed to `origin/main`                                        |
+| 2     | Manual Editing (Complete, AI-Free Product)                        | ✅ Done — 6 commits (creation/deletion/reordering/text-editing/SSR fix/persistence), **not yet pushed**; user is manually testing |
+| 3     | AI Initial Generation (two-phase gen, phase 1)                    | Not started                                                                                                                       |
+| 4     | Agentic Tool-Use & Diff-Based Refinement (two-phase gen, phase 2) | Not started                                                                                                                       |
+| 5     | Streaming                                                         | Not started                                                                                                                       |
+| 6     | Rich Content: Images, Charts, Tables                              | Not started                                                                                                                       |
+| 7     | Export                                                            | Not started                                                                                                                       |
+| 8     | Unified Undo/Redo (Nice to Have)                                  | Not started                                                                                                                       |
+| 9     | Themes / Templates (Nice to Have)                                 | Not started                                                                                                                       |
+| 10    | Context Window Management (Nice to Have)                          | Not started                                                                                                                       |
+| 11    | Multiple Presentation Projects (Nice to Have)                     | Not started                                                                                                                       |
+| 12    | Deployment, README, and Final Polish                              | Not started                                                                                                                       |
 
 Must-Haves = Phases 0–7 (fallback submission point if time runs out).
 Nice-to-Haves = Phases 8–11 (additive, droppable individually).
