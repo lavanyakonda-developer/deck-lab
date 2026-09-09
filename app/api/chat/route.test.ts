@@ -284,6 +284,41 @@ describe("POST /api/chat", () => {
     expect(systemMessage.content).toContain("Objectives");
   });
 
+  it("marks the currently selected slide in the deck context so an unqualified edit resolves to it", async () => {
+    mockCreate.mockResolvedValue(makeChunkStream([]));
+    await POST(
+      makeRequest({
+        message: "change title to JS Components",
+        deck,
+        selectedSlideId: "b",
+      }),
+    );
+
+    const callArgs = mockCreate.mock.calls[0][0];
+    const systemMessage = callArgs.messages[0];
+    expect(systemMessage.content).toMatch(
+      /id="b"[^\n]*\(currently selected\/viewed by the user\)/,
+    );
+    expect(systemMessage.content).not.toMatch(
+      /id="a"[^\n]*\(currently selected/,
+    );
+  });
+
+  it("treats a missing selectedSlideId as no slide selected rather than failing", async () => {
+    mockCreate.mockResolvedValue(makeChunkStream([]));
+    const response = await POST(
+      makeRequest({ message: "Delete slide 2", deck }),
+    );
+    expect(response.status).toBe(200);
+    const callArgs = mockCreate.mock.calls[0][0];
+    // The static instructions themselves mention "currently selected" (as
+    // the rule describing the feature) - what matters is that no slide
+    // *line* in the deck context is marked with it.
+    const deckContextSection =
+      callArgs.messages[0].content.split("Current deck:")[1];
+    expect(deckContextSection).not.toContain("currently selected");
+  });
+
   it("rejects an empty message with 400 and never starts streaming", async () => {
     const response = await POST(makeRequest({ message: "   ", deck }));
     expect(response.status).toBe(400);

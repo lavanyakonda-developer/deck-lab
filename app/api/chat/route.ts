@@ -28,7 +28,9 @@ Rules:
 - For update_slide, if you are changing any part of the body (e.g. one bullet, one table cell), you must supply the FULL new body array reflecting that one change, since body replaces the slide's entire body - do not drop unrelated content blocks.
 - change_layout only changes a slide's "type" and layout hints - it does NOT touch body content. If the request implies reshaping the actual content (e.g. "change it to a table", "turn these bullets into a comparison"), you must ALSO call update_slide with a new body containing a properly-shaped content block (e.g. a "table" block with real headers/rows derived from the existing content) in the SAME turn - change_layout alone would leave the old content block behind, rendering nothing.
 - The conversation history below is real - if you previously asked a clarifying question and the user's next message answers it (e.g. a slide number, "yes", "the bullets one"), resolve it using that history and proceed with a tool call. Do not ask the same question again.
-- If the request is ambiguous or could reasonably mean several different things, ask a clarifying question in your normal text response instead of guessing with a tool call.`;
+- If the request doesn't name a specific slide (e.g. "change the title to X", "make this more concise", "add a bullet about pricing") but the deck context below marks one slide as "(currently selected/viewed by the user)", apply the change to that slide - do NOT ask which slide, the one they're looking at is what they mean. Only ask a clarifying question when the request is ambiguous in some OTHER way (e.g. it's genuinely unclear what change is wanted, or no slide is marked as selected and none is named either).
+- If the request is ambiguous or could reasonably mean several different things, ask a clarifying question in your normal text response instead of guessing with a tool call.
+- Body content blocks: "bullets" and "paragraph" are the default. Use a "table" block for tabular data, a "chart" block (chartType "bar"/"line"/"pie", data as [{label, value}]) for quantitative content the user asks to visualize (e.g. "show this as a chart"), and an "image" block (only "alt" describing what's wanted - you never provide a "url", the actual image is generated afterward via a separate call) when the user explicitly asks for an image/photo/picture.`;
 
 function buildSystemPrompt(deckContext: string): string {
   return `${SYSTEM_INSTRUCTIONS}\n\nCurrent deck:\n${deckContext}`;
@@ -65,10 +67,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { message, deck, history } = (body ?? {}) as {
+  const { message, deck, history, selectedSlideId } = (body ?? {}) as {
     message?: unknown;
     deck?: unknown;
     history?: unknown;
+    selectedSlideId?: unknown;
   };
 
   if (typeof message !== "string" || message.trim().length === 0) {
@@ -91,6 +94,8 @@ export async function POST(request: Request) {
   const historyResult = HistoryMessageSchema.array().safeParse(history ?? []);
   const priorTurns = historyResult.success ? historyResult.data : [];
   const trimmedMessage = message.trim();
+  const currentSlideId =
+    typeof selectedSlideId === "string" ? selectedSlideId : null;
 
   const encoder = new TextEncoder();
 
@@ -106,7 +111,7 @@ export async function POST(request: Request) {
       try {
         const client = getOpenAIClient();
         const systemPrompt = buildSystemPrompt(
-          serializeDeckContext(deckResult.data),
+          serializeDeckContext(deckResult.data, currentSlideId),
         );
         const messages = [
           { role: "system" as const, content: systemPrompt },

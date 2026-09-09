@@ -63,4 +63,20 @@ describe("serializeDeckContext", () => {
     const context = serializeDeckContext(deck);
     expect(context).not.toContain("internal notes");
   });
+
+  it("marks the currently selected slide so the model can resolve unqualified requests", () => {
+    const context = serializeDeckContext(deck, "slide-b");
+    const lines = context.split("\n");
+    const selectedLine = lines.find((line) => line.includes("slide-b"));
+    const otherLine = lines.find((line) => line.includes("slide-a"));
+    expect(selectedLine).toContain("(currently selected/viewed by the user)");
+    expect(otherLine).not.toContain("currently selected");
+  });
+
+  it("marks no slide as selected when selectedSlideId is omitted or null", () => {
+    expect(serializeDeckContext(deck)).not.toContain("currently selected");
+    expect(serializeDeckContext(deck, null)).not.toContain(
+      "currently selected",
+    );
+  });
 });
