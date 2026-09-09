@@ -1,5 +1,4 @@
 import type jsPDF from "jspdf";
-import type { Context2d } from "jspdf";
 import type { autoTable as AutoTable } from "jspdf-autotable";
 import type { ContentBlock, Deck, Slide } from "@/lib/schema/slide";
 
@@ -86,11 +85,25 @@ function drawWrapped(
   return cursorY + lineHeight * shown.length;
 }
 
+// Chart label/legend text is drawn with jsPDF's own doc.text(), not
+// context2d's fillText(): context2d.font's "px" parsing multiplies the
+// numeric size by the document's unit scale factor (72, since this doc is
+// in "in") instead of converting real pixels to points, so an "8px" label
+// rendered ~576pt tall and bled across the page. doc.text()'s font sizes
+// are always real points regardless of document unit, so it doesn't have
+// that bug - context2d is used here only for vector shapes (arc/rect/line).
+function setLabelFont(doc: jsPDF) {
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(MUTED_COLOR);
+}
+
 function drawBarChart(
-  ctx: Context2d,
+  doc: jsPDF,
   data: { label: string; value: number }[],
   region: Region,
 ) {
+  const ctx = doc.context2d;
   const plotH = region.h - 0.3;
   const max = Math.max(...data.map((d) => d.value), 1);
   const slotW = region.w / data.length;
@@ -103,24 +116,25 @@ function drawBarChart(
   ctx.lineTo(region.x + region.w, region.y + plotH);
   ctx.stroke();
 
-  ctx.textAlign = "center";
   data.forEach((point, i) => {
     const barH = (point.value / max) * (plotH - 0.1);
     const x = region.x + i * slotW + (slotW - barW) / 2;
     ctx.fillStyle = CHART_COLORS[i % CHART_COLORS.length];
     ctx.fillRect(x, region.y + plotH - barH, barW, barH);
 
-    ctx.fillStyle = MUTED_COLOR;
-    ctx.font = "8px helvetica";
-    ctx.fillText(point.label, x + barW / 2, region.y + plotH + 0.18);
+    setLabelFont(doc);
+    doc.text(point.label, x + barW / 2, region.y + plotH + 0.18, {
+      align: "center",
+    });
   });
 }
 
 function drawLineChart(
-  ctx: Context2d,
+  doc: jsPDF,
   data: { label: string; value: number }[],
   region: Region,
 ) {
+  const ctx = doc.context2d;
   const plotH = region.h - 0.3;
   const max = Math.max(...data.map((d) => d.value), 1);
   const points = data.map((point, i) => ({
@@ -141,24 +155,25 @@ function drawLineChart(
   });
   ctx.stroke();
 
-  ctx.textAlign = "center";
   points.forEach((point) => {
     ctx.fillStyle = CHART_COLORS[0];
     ctx.beginPath();
     ctx.arc(point.x, point.y, 0.035, 0, Math.PI * 2, false);
     ctx.fill();
 
-    ctx.fillStyle = MUTED_COLOR;
-    ctx.font = "8px helvetica";
-    ctx.fillText(point.label, point.x, region.y + plotH + 0.18);
+    setLabelFont(doc);
+    doc.text(point.label, point.x, region.y + plotH + 0.18, {
+      align: "center",
+    });
   });
 }
 
 function drawPieChart(
-  ctx: Context2d,
+  doc: jsPDF,
   data: { label: string; value: number }[],
   region: Region,
 ) {
+  const ctx = doc.context2d;
   const total = data.reduce((sum, point) => sum + point.value, 0) || 1;
   const legendH = Math.min(0.22 * data.length, region.h * 0.4);
   const pieH = region.h - legendH - 0.1;
@@ -178,8 +193,6 @@ function drawPieChart(
     angle += sweep;
   });
 
-  ctx.textAlign = "left";
-  ctx.font = "8px helvetica";
   const legendTop = region.y + pieH + 0.15;
   const colW = region.w / Math.min(data.length, 3) || region.w;
   data.forEach((point, i) => {
@@ -189,8 +202,9 @@ function drawPieChart(
     const y = legendTop + row * 0.2;
     ctx.fillStyle = CHART_COLORS[i % CHART_COLORS.length];
     ctx.fillRect(x, y - 0.08, 0.1, 0.1);
-    ctx.fillStyle = MUTED_COLOR;
-    ctx.fillText(`${point.label}: ${point.value}`, x + 0.16, y);
+
+    setLabelFont(doc);
+    doc.text(`${point.label}: ${point.value}`, x + 0.16, y);
   });
 }
 
@@ -266,12 +280,11 @@ function renderBlocks(
           y: cursorY,
           h: Math.min(3, remaining - captionH),
         };
-        const ctx = doc.context2d;
         if (block.chartType === "bar")
-          drawBarChart(ctx, block.data, chartRegion);
+          drawBarChart(doc, block.data, chartRegion);
         else if (block.chartType === "line")
-          drawLineChart(ctx, block.data, chartRegion);
-        else drawPieChart(ctx, block.data, chartRegion);
+          drawLineChart(doc, block.data, chartRegion);
+        else drawPieChart(doc, block.data, chartRegion);
         cursorY += chartRegion.h;
         if (block.caption) {
           cursorY = drawWrapped(doc, block.caption, region, cursorY, captionH, {
