@@ -98,13 +98,16 @@ thumbnail rail): `ui-reference.png` (repo root).
   re-validated against the canonical `DeckSchema` before ever reaching the
   store. `generateDeck.ts` orchestrates the OpenAI call + both validation
   passes + normalization; `app/api/generate/route.ts` is the thin HTTP
-  wrapper (400 on bad input, 502 with the error message on generation
-  failure). This is deliberately a one-shot Chat Completions call with no
-  tool calls. **Not called directly by the client anymore** (see the
-  `generate_deck` tool under Agentic refinement pipeline below) — the
-  route stays as a standalone, independently-usable endpoint (e.g. a
-  future "New Deck" button), and `generateDeckFromPrompt()` is the
-  function Phase 4's `/api/chat` route calls internally when the model
+  wrapper (400 on bad input; see Streaming below for how it now reports
+  generation failures - no longer a 502, since the route streams). This is
+  deliberately a one-shot Chat Completions call with no tool calls.
+  **Not called directly by the client anymore** (see the `generate_deck`
+  tool under Agentic refinement pipeline below) — the route stays as a
+  standalone, independently-usable endpoint (e.g. a future "New Deck"
+  button), and `generateDeckFromPrompt()` is the non-streaming function
+  Phase 5's streaming sibling (`generateDeckStreamed`, see Streaming below)
+  is built alongside, not on top of. Phase 4's `/api/chat` route calls
+  `generateDeckStreamed()` internally when the model
   decides a wholesale new deck is needed. `lib/ai/jsonSchemaFragments.ts`
   holds the
   JSON-schema pieces (content block anyOf, layout hints, slide type enum)
@@ -196,12 +199,84 @@ generatedDeck }`; `ChatPanel.tsx` calls `loadDeck()` on that instead of
     Phase 4 report — the model can now call `generate_deck` at any point.
 - **Chat UI**: `store/chatStore.ts` (message list, persisted; `isGenerating`
   flag deliberately excluded via `partialize` so a mid-request refresh
-  never restores a stuck loading state) and `components/chat/ChatPanel.tsx`
-  (textarea + submit, always posts to `/api/chat` with the current deck +
-  prior message history; branches on `data.generatedDeck` vs
-  `data.toolCalls` in the response, not on anything decided client-side;
-  shows a generic "Thinking…" while awaiting, since which path the model
-  will take isn't known in advance).
+  never restores a stuck loading state; `addMessage` returns the new
+  message's id, and `appendToMessage`/`setMessageContent` support building
+  a message up progressively as it streams) and
+  `components/chat/ChatPanel.tsx` (textarea + submit, always posts to
+  `/api/chat` with the current deck + prior history, then reads the SSE
+  response - see Streaming below - reacting to whichever events arrive
+  rather than anything decided client-side in advance).
+- **Streaming** (Phase 5, M10): both `/api/generate` and `/api/chat` return
+  `text/event-stream` (SSE) responses instead of one JSON blob, so slides
+  and text appear incrementally rather than spinner-then-dump.
+  - `lib/ai/sse.ts` (server: `formatSSE(event, data)`) / `lib/ai/sseClient.ts`
+    (client: `parseSSEStream(response)`, an async generator yielding
+    `{event, data}` as each `"event: X\ndata: Y\n\n"` block completes,
+    correctly reassembling one split across arbitrary chunk/byte
+    boundaries - not naive line-splitting).
+  - `lib/ai/streamParser.ts`: the core of streaming structured-output
+    parsing. `IncrementalJsonObjectExtractor` is a small, deliberately
+    narrow string-aware JSON scanner - it only tracks `{`/`}` depth
+    (string- and escape-aware) and ignores `[`/`]` entirely, which is
+    sufficient (not a general JSON tokenizer) because every element we
+    feed it starts with `{` and any nested `[`/`]` is always balanced
+    within a `{ }` already being tracked. `DeckSlideStreamParser` wraps it
+    with a regex search for `"slides":[` to know when to start extracting.
+    Used twice: (1) `generateDeckStream.ts`'s `generateDeckStreamed()`
+    feeds it the raw `response_format: json_schema` content stream to
+    emit each slide the moment it closes; (2) `app/api/chat/route.ts`
+    feeds one instance per streamed tool-call index (`delta.tool_calls[i]`)
+    to detect when that tool call's `arguments` JSON is complete.
+  - `generateDeckStream.ts`'s `generateDeckStreamed(prompt, onSlide)` is
+    the streaming sibling of Phase 3's `generateDeckFromPrompt` (kept,
+    unchanged, for any non-streaming caller) - shares its system prompt
+    (`DECK_GENERATION_SYSTEM_PROMPT`, exported from `generateDeck.ts`) and
+    the same final zod validation as a safety net against a
+    truncated/corrupted stream. Critically, the `Deck` it resolves with
+    reuses the _exact same_ `Slide` objects (same ids) already handed to
+    `onSlide` - never a second, differently-id'd set - so a client
+    applying slides live and then reconciling on the final event never
+    sees duplicates or a mismatch.
+  - `app/api/generate/route.ts` and `app/api/chat/route.ts` both build a
+    `ReadableStream` and return `new Response(stream, {headers: {
+"Content-Type": "text/event-stream", ... }})`. Request-validation
+    failures (bad JSON, empty message/prompt, invalid deck) still return
+    a plain `NextResponse.json(..., {status:400})` _before_ the stream
+    starts. Once the stream starts, **the HTTP status is fixed at 200
+    even on failure** - a mid-stream (or immediate) failure can only be
+    signaled via an `event: error` SSE frame, never a different status
+    code. Any client reading these streams must check event type, not
+    `response.ok`/status, to detect failure - `ChatPanel.tsx` does this
+    correctly (throws on an `error` event, caught by the same try/catch
+    that already handles network/400 failures).
+  - `/api/chat`'s event vocabulary: `text-delta` (`{text}` fragment, for
+    plain assistant replies/clarifying questions), `tool-call` (one
+    validated `ValidatedToolCall`, emitted the moment that tool call's
+    arguments finish streaming - not batched at the end, so multiple
+    tool calls in one turn, e.g. `change_layout` + `update_slide`, apply
+    progressively as each completes), `slide` (one `Slide`, only when
+    `generate_deck` fired), `done` (`{reply}` or `{reply, generatedDeck}`),
+    `error` (`{error}`). `/api/generate`'s vocabulary is just `slide` /
+    `done: {deck}` / `error`.
+  - `ChatPanel.tsx` client handling: on the first `text-delta` it creates
+    an empty assistant message (`addMessage("assistant", "")`) and
+    `appendToMessage`s each fragment into it - a real progressive typing
+    effect. On the first `slide` event it replaces the deck with an empty
+    `{title: "Generating…", slides: []}` shell via the existing `loadDeck`
+    action, then `addSlide`s each streamed slide (already carrying its
+    real id) as it arrives; on `done` with a `generatedDeck`, a final
+    `loadDeck(generatedDeck)` reconciles the title and guarantees exact
+    final consistency. `tool-call` events `applyToolCall` immediately, one
+    at a time, as they arrive. A local `showThinking` boolean (not the
+    shared `isGenerating`, which still gates input for the whole request)
+    shows a "Thinking…" bubble only until the _first_ substantive event
+    arrives, then gets out of the way of the real incremental content.
+  - **Verified live against the real OpenAI API**, not just mocked, for
+    all four paths: `/api/generate` streamed 5 `slide` events with a
+    matching final `done`; a targeted refinement streamed exactly one
+    `tool-call` the moment its arguments completed; an ambiguous request
+    streamed 49 real `text-delta` fragments; `generate_deck` fired through
+    the unified `/api/chat` endpoint streamed 5 `slide` events + `done`.
 - **Layout**: fixed desktop/MacBook layout, not responsive — the user
   explicitly deprioritized cross-device support. `app/page.tsx` is always
   `flex-row` (no `md:` breakpoints): a fixed `w-[380px]` chat sidebar
@@ -271,8 +346,8 @@ the status tracker.
 | 1     | Slide Schema & Deck State Model                                   | ✅ Done — committed `feat: add slide schema and deck state model`, pushed to `origin/main`                                    |
 | 2     | Manual Editing (Complete, AI-Free Product)                        | ✅ Done — 6 commits (creation/deletion/reordering/text-editing/SSR fix/persistence), reviewed and manually tested by the user |
 | 3     | AI Initial Generation (two-phase gen, phase 1)                    | ✅ Done — committed, not yet pushed; verified end-to-end against the live OpenAI API                                          |
-| 4     | Agentic Tool-Use & Diff-Based Refinement (two-phase gen, phase 2) | ✅ Done — uncommitted (user commits themselves); verified end-to-end against the live OpenAI API                              |
-| 5     | Streaming                                                         | Not started                                                                                                                   |
+| 4     | Agentic Tool-Use & Diff-Based Refinement (two-phase gen, phase 2) | ✅ Done — committed, not yet pushed; verified end-to-end against the live OpenAI API                                          |
+| 5     | Streaming                                                         | ✅ Done — uncommitted (user commits themselves); verified end-to-end against the live OpenAI API                              |
 | 6     | Rich Content: Images, Charts, Tables                              | Not started                                                                                                                   |
 | 7     | Export                                                            | Not started                                                                                                                   |
 | 8     | Unified Undo/Redo (Nice to Have)                                  | Not started                                                                                                                   |

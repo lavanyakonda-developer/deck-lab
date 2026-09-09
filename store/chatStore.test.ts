@@ -7,12 +7,31 @@ beforeEach(() => {
 });
 
 describe("chatStore", () => {
-  it("addMessage appends a message with a generated id", () => {
-    useChatStore.getState().addMessage("user", "Hello");
+  it("addMessage appends a message with a generated id and returns it", () => {
+    const id = useChatStore.getState().addMessage("user", "Hello");
     const { messages } = useChatStore.getState();
     expect(messages).toHaveLength(1);
     expect(messages[0]).toMatchObject({ role: "user", content: "Hello" });
-    expect(messages[0].id).toBeTruthy();
+    expect(messages[0].id).toBe(id);
+  });
+
+  it("appendToMessage appends text to the targeted message only", () => {
+    const id = useChatStore.getState().addMessage("assistant", "Hel");
+    useChatStore.getState().addMessage("user", "unrelated");
+    useChatStore.getState().appendToMessage(id, "lo");
+    useChatStore.getState().appendToMessage(id, " world");
+
+    const { messages } = useChatStore.getState();
+    expect(messages.find((m) => m.id === id)?.content).toBe("Hello world");
+    expect(messages.find((m) => m.role === "user")?.content).toBe("unrelated");
+  });
+
+  it("setMessageContent replaces a message's content outright", () => {
+    const id = useChatStore.getState().addMessage("assistant", "draft");
+    useChatStore.getState().setMessageContent(id, "final");
+    expect(
+      useChatStore.getState().messages.find((m) => m.id === id)?.content,
+    ).toBe("final");
   });
 
   it("persists messages to localStorage but never isGenerating", () => {

@@ -2,16 +2,21 @@
 
 import { useState } from "react";
 import { applyToolCall } from "@/lib/ai/applyToolCalls";
+import { parseSSEStream } from "@/lib/ai/sseClient";
 import type { ValidatedToolCall } from "@/lib/ai/tools";
-import type { Deck } from "@/lib/schema/slide";
+import { createId } from "@/lib/id";
+import type { Deck, Slide } from "@/lib/schema/slide";
 import { useChatStore } from "@/store/chatStore";
 import { useDeckStore } from "@/store/deckStore";
 
 export function ChatPanel() {
   const [input, setInput] = useState("");
+  const [showThinking, setShowThinking] = useState(false);
   const messages = useChatStore((state) => state.messages);
   const isGenerating = useChatStore((state) => state.isGenerating);
   const addMessage = useChatStore((state) => state.addMessage);
+  const appendToMessage = useChatStore((state) => state.appendToMessage);
+  const setMessageContent = useChatStore((state) => state.setMessageContent);
   const setGenerating = useChatStore((state) => state.setGenerating);
 
   const sendMessage = async (message: string) => {
@@ -28,20 +33,72 @@ export function ChatPanel() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message, deck, history }),
     });
-    const data = await response.json();
+
     if (!response.ok) {
+      // Request-validation failures (bad JSON, empty message, invalid
+      // deck) return a plain 400 JSON body, not a stream.
+      const data = await response.json().catch(() => ({}));
       throw new Error(data.error ?? "Failed to process message");
     }
 
-    if (data.generatedDeck) {
-      useDeckStore.getState().loadDeck(data.generatedDeck as Deck);
-    } else {
-      const toolCalls = data.toolCalls as ValidatedToolCall[];
-      for (const call of toolCalls) {
-        applyToolCall(useDeckStore.getState(), call);
+    let assistantMessageId: string | null = null;
+    let deckCleared = false;
+
+    for await (const evt of parseSSEStream(response)) {
+      setShowThinking(false);
+
+      switch (evt.event) {
+        case "text-delta": {
+          const { text } = evt.data as { text: string };
+          if (assistantMessageId === null) {
+            assistantMessageId = addMessage("assistant", "");
+          }
+          appendToMessage(assistantMessageId, text);
+          break;
+        }
+
+        case "tool-call": {
+          applyToolCall(useDeckStore.getState(), evt.data as ValidatedToolCall);
+          break;
+        }
+
+        case "slide": {
+          if (!deckCleared) {
+            useDeckStore.getState().loadDeck({
+              id: createId("deck"),
+              title: "Generating…",
+              slides: [],
+            });
+            deckCleared = true;
+          }
+          useDeckStore.getState().addSlide(evt.data as Slide);
+          break;
+        }
+
+        case "done": {
+          const { reply, generatedDeck } = evt.data as {
+            reply: string;
+            generatedDeck?: Deck;
+          };
+          if (generatedDeck) {
+            // Reconciles the final title and slide set - reuses the same
+            // slide ids already streamed via "slide" events above.
+            useDeckStore.getState().loadDeck(generatedDeck);
+          }
+          if (assistantMessageId === null) {
+            addMessage("assistant", reply);
+          } else {
+            setMessageContent(assistantMessageId, reply);
+          }
+          break;
+        }
+
+        case "error": {
+          const { error } = evt.data as { error: string };
+          throw new Error(error);
+        }
       }
     }
-    addMessage("assistant", data.reply as string);
   };
 
   const submitPrompt = async () => {
@@ -51,6 +108,7 @@ export function ChatPanel() {
     addMessage("user", prompt);
     setInput("");
     setGenerating(true);
+    setShowThinking(true);
 
     try {
       await sendMessage(prompt);
@@ -63,6 +121,7 @@ export function ChatPanel() {
       );
     } finally {
       setGenerating(false);
+      setShowThinking(false);
     }
   };
 
@@ -87,7 +146,7 @@ export function ChatPanel() {
           messages.map((message) => (
             <div
               key={message.id}
-              className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+              className={`max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
                 message.role === "user"
                   ? "self-end bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
                   : "self-start bg-zinc-100 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
@@ -97,7 +156,7 @@ export function ChatPanel() {
             </div>
           ))
         )}
-        {isGenerating && (
+        {showThinking && (
           <div className="self-start rounded-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
             Thinking…
           </div>

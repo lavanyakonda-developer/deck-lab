@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { generateDeckFromPrompt } from "@/lib/ai/generateDeck";
+import { generateDeckStreamed } from "@/lib/ai/generateDeckStream";
+import { formatSSE } from "@/lib/ai/sse";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -17,13 +18,37 @@ export async function POST(request: Request) {
     );
   }
 
-  try {
-    const deck = await generateDeckFromPrompt(prompt.trim());
-    return NextResponse.json({ deck });
-  } catch (error) {
-    console.error("POST /api/generate failed:", error);
-    const message =
-      error instanceof Error ? error.message : "Failed to generate deck";
-    return NextResponse.json({ error: message }, { status: 502 });
-  }
+  const trimmedPrompt = prompt.trim();
+  const encoder = new TextEncoder();
+
+  // Once this stream starts, the HTTP status is fixed at 200 - a failure
+  // partway through (or even immediately) can only be signaled via an
+  // "error" SSE event, not a different status code. The client must
+  // check event type, not response.ok, to detect failure.
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        const deck = await generateDeckStreamed(trimmedPrompt, (slide) => {
+          controller.enqueue(encoder.encode(formatSSE("slide", slide)));
+        });
+        controller.enqueue(encoder.encode(formatSSE("done", { deck })));
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to generate deck";
+        controller.enqueue(
+          encoder.encode(formatSSE("error", { error: message })),
+        );
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
 }

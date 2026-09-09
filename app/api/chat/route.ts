@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { DeckSchema } from "@/lib/schema/slide";
 import { serializeDeckContext } from "@/lib/ai/deckContext";
-import { generateDeckFromPrompt } from "@/lib/ai/generateDeck";
+import { generateDeckStreamed } from "@/lib/ai/generateDeckStream";
 import { getOpenAIClient, OPENAI_MODEL } from "@/lib/ai/openaiClient";
+import { formatSSE } from "@/lib/ai/sse";
+import { IncrementalJsonObjectExtractor } from "@/lib/ai/streamParser";
 import {
   TOOL_DEFINITIONS,
   validateToolCall,
@@ -88,71 +90,114 @@ export async function POST(request: Request) {
   // default to no prior turns rather than rejecting the request.
   const historyResult = HistoryMessageSchema.array().safeParse(history ?? []);
   const priorTurns = historyResult.success ? historyResult.data : [];
+  const trimmedMessage = message.trim();
 
-  try {
-    const client = getOpenAIClient();
-    const systemPrompt = buildSystemPrompt(
-      serializeDeckContext(deckResult.data),
-    );
+  const encoder = new TextEncoder();
 
-    const messages = [
-      { role: "system" as const, content: systemPrompt },
-      ...priorTurns.map((turn) => ({
-        role: turn.role,
-        content: turn.content,
-      })),
-      { role: "user" as const, content: message.trim() },
-    ];
+  // Once this stream starts, the HTTP status is fixed at 200 - a failure
+  // partway through (or even immediately) can only be signaled via an
+  // "error" SSE event, not a different status code. The client must
+  // check event type, not response.ok, to detect failure.
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const emit = (event: string, data: unknown) =>
+        controller.enqueue(encoder.encode(formatSSE(event, data)));
 
-    const completion = await client.chat.completions.create({
-      model: OPENAI_MODEL,
-      messages,
-      tools: TOOL_DEFINITIONS,
-    });
-
-    const choice = completion.choices[0];
-    const rawToolCalls = choice?.message?.tool_calls ?? [];
-
-    const toolCalls: ValidatedToolCall[] = [];
-    for (const rawCall of rawToolCalls) {
-      if (rawCall.type !== "function") continue;
-      let parsedArgs: unknown;
       try {
-        parsedArgs = JSON.parse(rawCall.function.arguments);
-      } catch {
-        continue;
+        const client = getOpenAIClient();
+        const systemPrompt = buildSystemPrompt(
+          serializeDeckContext(deckResult.data),
+        );
+        const messages = [
+          { role: "system" as const, content: systemPrompt },
+          ...priorTurns.map((turn) => ({
+            role: turn.role,
+            content: turn.content,
+          })),
+          { role: "user" as const, content: trimmedMessage },
+        ];
+
+        const chatStream = await client.chat.completions.create({
+          model: OPENAI_MODEL,
+          messages,
+          tools: TOOL_DEFINITIONS,
+          stream: true,
+        });
+
+        let textContent = "";
+        let generateDeckPrompt: string | null = null;
+        const appliedTools: ValidatedToolCall[] = [];
+        const toolCallState = new Map<
+          number,
+          { name: string; extractor: IncrementalJsonObjectExtractor }
+        >();
+
+        for await (const chunk of chatStream) {
+          const delta = chunk.choices[0]?.delta;
+          if (!delta) continue;
+
+          if (delta.content) {
+            textContent += delta.content;
+            emit("text-delta", { text: delta.content });
+          }
+
+          for (const toolCallDelta of delta.tool_calls ?? []) {
+            const index = toolCallDelta.index;
+            let state = toolCallState.get(index);
+            if (!state) {
+              state = {
+                name: toolCallDelta.function?.name ?? "",
+                extractor: new IncrementalJsonObjectExtractor(),
+              };
+              toolCallState.set(index, state);
+            } else if (toolCallDelta.function?.name) {
+              state.name = toolCallDelta.function.name;
+            }
+
+            const argsDelta = toolCallDelta.function?.arguments;
+            if (!argsDelta) continue;
+
+            for (const rawArgs of state.extractor.feed(argsDelta)) {
+              const validated = validateToolCall(state.name, rawArgs);
+              if (!validated) continue;
+              if (validated.tool === "generate_deck") {
+                generateDeckPrompt = validated.args.prompt;
+              } else {
+                appliedTools.push(validated);
+                emit("tool-call", validated);
+              }
+            }
+          }
+        }
+
+        if (generateDeckPrompt) {
+          const generatedDeck = await generateDeckStreamed(
+            generateDeckPrompt,
+            (slide) => emit("slide", slide),
+          );
+          const reply = `Generated "${generatedDeck.title}" — ${generatedDeck.slides.length} slide${
+            generatedDeck.slides.length === 1 ? "" : "s"
+          }: ${generatedDeck.slides.map((s) => s.title).join(", ")}.`;
+          emit("done", { reply, generatedDeck });
+        } else {
+          const reply = textContent.trim() || summarizeToolCalls(appliedTools);
+          emit("done", { reply });
+        }
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to process message";
+        emit("error", { error: errorMessage });
+      } finally {
+        controller.close();
       }
-      const validated = validateToolCall(rawCall.function.name, parsedArgs);
-      if (validated) {
-        toolCalls.push(validated);
-      }
-    }
+    },
+  });
 
-    // generate_deck replaces the whole deck via the existing bulk-
-    // generation pipeline - it's exclusive of the targeted editing tools,
-    // so if present it wins and any other tool calls in the same turn are
-    // ignored (the model was told not to combine them, but don't trust it).
-    const generateCall = toolCalls.find(
-      (call) => call.tool === "generate_deck",
-    );
-    if (generateCall) {
-      const generatedDeck = await generateDeckFromPrompt(
-        generateCall.args.prompt,
-      );
-      const reply = `Generated "${generatedDeck.title}" — ${generatedDeck.slides.length} slide${
-        generatedDeck.slides.length === 1 ? "" : "s"
-      }: ${generatedDeck.slides.map((slide) => slide.title).join(", ")}.`;
-      return NextResponse.json({ reply, toolCalls: [], generatedDeck });
-    }
-
-    const reply =
-      choice?.message?.content?.trim() || summarizeToolCalls(toolCalls);
-
-    return NextResponse.json({ reply, toolCalls });
-  } catch (error) {
-    console.error("POST /api/chat failed:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Failed to process message";
-    return NextResponse.json({ error: errorMessage }, { status: 502 });
-  }
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
 }

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Deck } from "@/lib/schema/slide";
+import type { Deck, Slide } from "@/lib/schema/slide";
 
 const mockCreate = vi.fn();
-const mockGenerateDeckFromPrompt = vi.fn();
+const mockGenerateDeckStreamed = vi.fn();
 
 vi.mock("@/lib/ai/openaiClient", () => ({
   getOpenAIClient: () => ({
@@ -11,9 +11,9 @@ vi.mock("@/lib/ai/openaiClient", () => ({
   OPENAI_MODEL: "gpt-4o",
 }));
 
-vi.mock("@/lib/ai/generateDeck", () => ({
-  generateDeckFromPrompt: (prompt: string) =>
-    mockGenerateDeckFromPrompt(prompt),
+vi.mock("@/lib/ai/generateDeckStream", () => ({
+  generateDeckStreamed: (prompt: string, onSlide: (slide: Slide) => void) =>
+    mockGenerateDeckStreamed(prompt, onSlide),
 }));
 
 import { POST } from "./route";
@@ -47,207 +47,244 @@ function makeRequest(body: unknown): Request {
   });
 }
 
-function toolCallResponse(
-  calls: Array<{ name: string; args: unknown }>,
-  content: string | null = null,
-) {
+async function readSSE(
+  response: Response,
+): Promise<Array<{ event: string; data: unknown }>> {
+  const text = await response.text();
+  return text
+    .split("\n\n")
+    .filter(Boolean)
+    .map((block) => {
+      const lines = block.split("\n");
+      const eventLine = lines.find((l) => l.startsWith("event: "))!;
+      const dataLine = lines.find((l) => l.startsWith("data: "))!;
+      return {
+        event: eventLine.slice("event: ".length),
+        data: JSON.parse(dataLine.slice("data: ".length)),
+      };
+    });
+}
+
+// Simulates a realistic streaming response: text arrives in fragments,
+// each tool call's arguments dribble in across several chunks.
+function makeChunkStream(deltas: Array<Record<string, unknown>>) {
   return {
-    choices: [
-      {
-        message: {
-          content,
-          tool_calls: calls.map((call, i) => ({
-            id: `call_${i}`,
-            type: "function",
-            function: { name: call.name, arguments: JSON.stringify(call.args) },
-          })),
-        },
-      },
-    ],
+    async *[Symbol.asyncIterator]() {
+      for (const delta of deltas) {
+        yield { choices: [{ delta }] };
+      }
+    },
   };
+}
+
+function textDeltas(text: string, size = 4): Array<Record<string, unknown>> {
+  const out: Array<Record<string, unknown>> = [];
+  for (let i = 0; i < text.length; i += size) {
+    out.push({ content: text.slice(i, i + size) });
+  }
+  return out;
+}
+
+function toolCallDeltas(
+  index: number,
+  name: string,
+  args: unknown,
+  chunkSize = 5,
+): Array<Record<string, unknown>> {
+  const argsJson = JSON.stringify(args);
+  const out: Array<Record<string, unknown>> = [
+    {
+      tool_calls: [
+        {
+          index,
+          id: `call_${index}`,
+          type: "function",
+          function: { name, arguments: "" },
+        },
+      ],
+    },
+  ];
+  for (let i = 0; i < argsJson.length; i += chunkSize) {
+    out.push({
+      tool_calls: [
+        { index, function: { arguments: argsJson.slice(i, i + chunkSize) } },
+      ],
+    });
+  }
+  return out;
 }
 
 describe("POST /api/chat", () => {
   beforeEach(() => {
     mockCreate.mockReset();
-    mockGenerateDeckFromPrompt.mockReset();
+    mockGenerateDeckStreamed.mockReset();
   });
 
-  it("returns a validated update_slide tool call for a targeted request", async () => {
+  it("streams text-delta events for a plain text (clarifying question) reply", async () => {
     mockCreate.mockResolvedValue(
-      toolCallResponse([
-        {
-          name: "update_slide",
-          args: {
-            id: "b",
-            title: null,
-            subtitle: null,
-            body: [{ type: "paragraph", text: "Shorter.", column: null }],
-            layout: null,
-            speakerNotes: null,
-          },
-        },
-      ]),
+      makeChunkStream(textDeltas("Which slide do you mean?")),
     );
 
     const response = await POST(
-      makeRequest({ message: "Make slide 2 more concise", deck }),
+      makeRequest({ message: "make it better", deck }),
     );
+    const events = await readSSE(response);
 
-    expect(response.status).toBe(200);
-    const body = await response.json();
-    expect(body.toolCalls).toHaveLength(1);
-    expect(body.toolCalls[0]).toMatchObject({
-      tool: "update_slide",
-      args: { id: "b" },
+    const textEvents = events.filter((e) => e.event === "text-delta");
+    expect(textEvents.length).toBeGreaterThan(1); // actually streamed, not one blob
+    expect(
+      textEvents.map((e) => (e.data as { text: string }).text).join(""),
+    ).toBe("Which slide do you mean?");
+    expect(events.at(-1)).toEqual({
+      event: "done",
+      data: { reply: "Which slide do you mean?" },
     });
   });
 
-  it("passes the deck context (including slide ids) to OpenAI", async () => {
-    mockCreate.mockResolvedValue(toolCallResponse([]));
-    await POST(makeRequest({ message: "Make slide 2 more concise", deck }));
-
-    const callArgs = mockCreate.mock.calls[0][0];
-    const systemMessage = callArgs.messages.find(
-      (m: { role: string }) => m.role === "system",
-    );
-    expect(systemMessage.content).toContain('id="b"');
-    expect(systemMessage.content).toContain("Objectives");
-    expect(callArgs.tools).toBeDefined();
-  });
-
-  it("includes prior conversation turns in the OpenAI messages array, in order, before the current message", async () => {
-    mockCreate.mockResolvedValue(toolCallResponse([]));
-    await POST(
-      makeRequest({
-        message: "3rd slide",
-        deck,
-        history: [
-          { role: "user", content: "can you change it to table" },
-          {
-            role: "assistant",
-            content: "Which slide would you like to change to a table?",
-          },
-        ],
-      }),
-    );
-
-    const callArgs = mockCreate.mock.calls[0][0];
-    expect(callArgs.messages).toEqual([
-      expect.objectContaining({ role: "system" }),
-      { role: "user", content: "can you change it to table" },
-      {
-        role: "assistant",
-        content: "Which slide would you like to change to a table?",
-      },
-      { role: "user", content: "3rd slide" },
-    ]);
-  });
-
-  it("treats a missing history as no prior turns rather than failing", async () => {
-    mockCreate.mockResolvedValue(toolCallResponse([]));
-    const response = await POST(
-      makeRequest({ message: "Delete slide 2", deck }),
-    );
-    expect(response.status).toBe(200);
-    const callArgs = mockCreate.mock.calls[0][0];
-    expect(callArgs.messages).toHaveLength(2); // system + current message only
-  });
-
-  it("intercepts generate_deck server-side and returns generatedDeck instead of a raw tool call", async () => {
+  it("emits a tool-call event as soon as a single tool call's arguments complete", async () => {
     mockCreate.mockResolvedValue(
-      toolCallResponse([
-        {
-          name: "generate_deck",
-          args: { prompt: "Create a deck about coffee" },
-        },
+      makeChunkStream(toolCallDeltas(0, "delete_slide", { id: "b" })),
+    );
+
+    const response = await POST(
+      makeRequest({ message: "delete slide 2", deck }),
+    );
+    const events = await readSSE(response);
+
+    expect(events).toEqual([
+      { event: "tool-call", data: { tool: "delete_slide", args: { id: "b" } } },
+      { event: "done", data: { reply: "Done — deleted a slide." } },
+    ]);
+    expect(mockGenerateDeckStreamed).not.toHaveBeenCalled();
+  });
+
+  it("emits multiple tool-call events, one per completed tool call, for a multi-tool turn", async () => {
+    const changeLayoutArgs = { id: "b", type: "table", layout: null };
+    const updateSlideArgs = {
+      id: "b",
+      title: null,
+      subtitle: null,
+      body: [{ type: "table", headers: ["A"], rows: [["1"]], column: null }],
+      layout: null,
+      speakerNotes: null,
+    };
+    mockCreate.mockResolvedValue(
+      makeChunkStream([
+        ...toolCallDeltas(0, "change_layout", changeLayoutArgs),
+        ...toolCallDeltas(1, "update_slide", updateSlideArgs),
       ]),
+    );
+
+    const response = await POST(
+      makeRequest({ message: "change slide 2 to a table", deck }),
+    );
+    const events = await readSSE(response);
+
+    const toolCallEvents = events.filter((e) => e.event === "tool-call");
+    expect(toolCallEvents).toHaveLength(2);
+    expect(toolCallEvents[0].data).toEqual({
+      tool: "change_layout",
+      args: changeLayoutArgs,
+    });
+    expect(toolCallEvents[1].data).toEqual({
+      tool: "update_slide",
+      args: updateSlideArgs,
+    });
+    expect(events.at(-1)?.event).toBe("done");
+  });
+
+  it("drops an invalid tool call silently (no tool-call event) but the stream still completes", async () => {
+    mockCreate.mockResolvedValue(
+      // missing required "id"
+      makeChunkStream(toolCallDeltas(0, "delete_slide", {})),
+    );
+    const response = await POST(
+      makeRequest({ message: "delete slide 2", deck }),
+    );
+    const events = await readSSE(response);
+    expect(events.filter((e) => e.event === "tool-call")).toHaveLength(0);
+    expect(events.at(-1)).toEqual({
+      event: "done",
+      data: { reply: "I didn't make any changes." },
+    });
+  });
+
+  it("intercepts generate_deck and streams slide events, then done with generatedDeck", async () => {
+    mockCreate.mockResolvedValue(
+      makeChunkStream(
+        toolCallDeltas(0, "generate_deck", {
+          prompt: "Create a deck about coffee",
+        }),
+      ),
     );
     const generated: Deck = {
       id: "deck-2",
       title: "Coffee",
       slides: [
         { id: "x", type: "title", title: "Coffee", body: [], speakerNotes: "" },
+        {
+          id: "y",
+          type: "content",
+          title: "Origins",
+          body: [],
+          speakerNotes: "",
+        },
       ],
     };
-    mockGenerateDeckFromPrompt.mockResolvedValue(generated);
+    mockGenerateDeckStreamed.mockImplementation(async (_prompt, onSlide) => {
+      for (const slide of generated.slides) onSlide(slide);
+      return generated;
+    });
 
     const response = await POST(
       makeRequest({ message: "Create a deck about coffee", deck }),
     );
+    const events = await readSSE(response);
 
-    expect(response.status).toBe(200);
-    const body = await response.json();
-    expect(mockGenerateDeckFromPrompt).toHaveBeenCalledWith(
+    expect(mockGenerateDeckStreamed).toHaveBeenCalledWith(
       "Create a deck about coffee",
+      expect.any(Function),
     );
-    expect(body.generatedDeck).toEqual(generated);
-    expect(body.toolCalls).toEqual([]);
-    expect(body.reply).toContain("Coffee");
-  });
-
-  it("this is the reported bug's regression guard: a targeted edit request must not trigger generate_deck", async () => {
-    // We can't unit-test the model's judgment, but we can guard the
-    // mechanical contract: when the model correctly returns delete_slide
-    // (as verified live), the route must forward it as a normal tool
-    // call, not treat it as a generation request.
-    mockCreate.mockResolvedValue(
-      toolCallResponse([{ name: "delete_slide", args: { id: "b" } }]),
-    );
-
-    const response = await POST(
-      makeRequest({ message: "delete slide 2", deck }),
-    );
-
-    expect(response.status).toBe(200);
-    const body = await response.json();
-    expect(mockGenerateDeckFromPrompt).not.toHaveBeenCalled();
-    expect(body.generatedDeck).toBeUndefined();
-    expect(body.toolCalls).toEqual([
-      { tool: "delete_slide", args: { id: "b" } },
+    expect(events.filter((e) => e.event === "tool-call")).toHaveLength(0);
+    expect(events.filter((e) => e.event === "slide")).toEqual([
+      { event: "slide", data: generated.slides[0] },
+      { event: "slide", data: generated.slides[1] },
     ]);
+    const done = events.at(-1)!;
+    expect(done.event).toBe("done");
+    expect((done.data as { generatedDeck: Deck }).generatedDeck).toEqual(
+      generated,
+    );
+    expect((done.data as { reply: string }).reply).toContain("Coffee");
   });
 
-  it("drops an invalid tool call but keeps valid ones", async () => {
-    mockCreate.mockResolvedValue(
-      toolCallResponse([
-        { name: "delete_slide", args: { id: "b" } },
-        { name: "delete_slide", args: {} }, // missing required id
-      ]),
+  it("passes the deck context (including slide ids) and prior history to OpenAI", async () => {
+    mockCreate.mockResolvedValue(makeChunkStream([]));
+    await POST(
+      makeRequest({
+        message: "3rd slide",
+        deck,
+        history: [
+          { role: "user", content: "can you change it to table" },
+          { role: "assistant", content: "Which slide?" },
+        ],
+      }),
     );
 
-    const response = await POST(
-      makeRequest({ message: "Delete slide 2", deck }),
-    );
-    const body = await response.json();
-    expect(body.toolCalls).toHaveLength(1);
-    expect(body.toolCalls[0].args.id).toBe("b");
+    const callArgs = mockCreate.mock.calls[0][0];
+    expect(callArgs.stream).toBe(true);
+    expect(callArgs.messages).toEqual([
+      expect.objectContaining({ role: "system" }),
+      { role: "user", content: "can you change it to table" },
+      { role: "assistant", content: "Which slide?" },
+      { role: "user", content: "3rd slide" },
+    ]);
+    const systemMessage = callArgs.messages[0];
+    expect(systemMessage.content).toContain('id="b"');
+    expect(systemMessage.content).toContain("Objectives");
   });
 
-  it("falls back to a synthesized reply when the model returns no text", async () => {
-    mockCreate.mockResolvedValue(
-      toolCallResponse([{ name: "delete_slide", args: { id: "b" } }], null),
-    );
-    const response = await POST(
-      makeRequest({ message: "Delete slide 2", deck }),
-    );
-    const body = await response.json();
-    expect(body.reply).toContain("deleted a slide");
-  });
-
-  it("uses the model's own text reply when present", async () => {
-    mockCreate.mockResolvedValue(
-      toolCallResponse([], "Could you clarify which slide you mean?"),
-    );
-    const response = await POST(
-      makeRequest({ message: "make it better", deck }),
-    );
-    const body = await response.json();
-    expect(body.reply).toBe("Could you clarify which slide you mean?");
-    expect(body.toolCalls).toHaveLength(0);
-  });
-
-  it("rejects an empty message with 400 and never calls OpenAI", async () => {
+  it("rejects an empty message with 400 and never starts streaming", async () => {
     const response = await POST(makeRequest({ message: "   ", deck }));
     expect(response.status).toBe(400);
     expect(mockCreate).not.toHaveBeenCalled();
@@ -266,13 +303,15 @@ describe("POST /api/chat", () => {
     expect(response.status).toBe(400);
   });
 
-  it("returns 502 when the OpenAI call fails", async () => {
+  it("emits an error SSE event (HTTP 200) when the OpenAI call fails", async () => {
     mockCreate.mockRejectedValue(new Error("OpenAI is down"));
     const response = await POST(
       makeRequest({ message: "Delete slide 2", deck }),
     );
-    expect(response.status).toBe(502);
-    const body = await response.json();
-    expect(body.error).toBe("OpenAI is down");
+    expect(response.status).toBe(200);
+    const events = await readSSE(response);
+    expect(events).toEqual([
+      { event: "error", data: { error: "OpenAI is down" } },
+    ]);
   });
 });

@@ -5,7 +5,7 @@ import { GeneratedDeckSchema } from "./deckGenerationSchema";
 import { normalizeGeneratedDeck } from "./normalizeGeneratedDeck";
 import { getOpenAIClient, OPENAI_MODEL } from "./openaiClient";
 
-const SYSTEM_PROMPT = `You create presentation decks as structured JSON. Produce clear, coherent, well-organized slides with concise titles and body content appropriate to each slide's type.
+export const DECK_GENERATION_SYSTEM_PROMPT = `You create presentation decks as structured JSON. Produce clear, coherent, well-organized slides with concise titles and body content appropriate to each slide's type.
 
 Choose slide types thoughtfully:
 - "title": the opening slide (a short title + optional subtitle, empty body).
@@ -22,7 +22,7 @@ export async function generateDeckFromPrompt(prompt: string): Promise<Deck> {
   const completion = await client.chat.completions.create({
     model: OPENAI_MODEL,
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: DECK_GENERATION_SYSTEM_PROMPT },
       { role: "user", content: prompt },
     ],
     response_format: {
