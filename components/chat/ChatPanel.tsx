@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { applyToolCall } from "@/lib/ai/applyToolCalls";
+import type { ValidatedToolCall } from "@/lib/ai/tools";
 import type { Deck } from "@/lib/schema/slide";
 import { useChatStore } from "@/store/chatStore";
 import { useDeckStore } from "@/store/deckStore";
@@ -11,7 +13,36 @@ export function ChatPanel() {
   const isGenerating = useChatStore((state) => state.isGenerating);
   const addMessage = useChatStore((state) => state.addMessage);
   const setGenerating = useChatStore((state) => state.setGenerating);
-  const loadDeck = useDeckStore((state) => state.loadDeck);
+
+  const sendMessage = async (message: string) => {
+    const deck = useDeckStore.getState().deck;
+    // The user's message was already pushed onto chatStore by submitPrompt,
+    // so it's the last entry here - everything before it is prior context.
+    const currentMessages = useChatStore.getState().messages;
+    const history = currentMessages
+      .slice(0, -1)
+      .map(({ role, content }) => ({ role, content }));
+
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, deck, history }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error ?? "Failed to process message");
+    }
+
+    if (data.generatedDeck) {
+      useDeckStore.getState().loadDeck(data.generatedDeck as Deck);
+    } else {
+      const toolCalls = data.toolCalls as ValidatedToolCall[];
+      for (const call of toolCalls) {
+        applyToolCall(useDeckStore.getState(), call);
+      }
+    }
+    addMessage("assistant", data.reply as string);
+  };
 
   const submitPrompt = async () => {
     const prompt = input.trim();
@@ -22,31 +53,13 @@ export function ChatPanel() {
     setGenerating(true);
 
     try {
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error ?? "Failed to generate deck");
-      }
-
-      const deck = data.deck as Deck;
-      loadDeck(deck);
-      const titles = deck.slides.map((slide) => slide.title).join(", ");
-      addMessage(
-        "assistant",
-        `Generated "${deck.title}" — ${deck.slides.length} slide${
-          deck.slides.length === 1 ? "" : "s"
-        }: ${titles}.`,
-      );
+      await sendMessage(prompt);
     } catch (error) {
       addMessage(
         "assistant",
         error instanceof Error
           ? `Something went wrong: ${error.message}`
-          : "Something went wrong generating the deck.",
+          : "Something went wrong.",
       );
     } finally {
       setGenerating(false);
@@ -86,7 +99,7 @@ export function ChatPanel() {
         )}
         {isGenerating && (
           <div className="self-start rounded-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
-            Generating…
+            Thinking…
           </div>
         )}
       </div>

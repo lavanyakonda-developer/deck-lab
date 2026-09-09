@@ -99,15 +99,109 @@ thumbnail rail): `ui-reference.png` (repo root).
   store. `generateDeck.ts` orchestrates the OpenAI call + both validation
   passes + normalization; `app/api/generate/route.ts` is the thin HTTP
   wrapper (400 on bad input, 502 with the error message on generation
-  failure). This is deliberately a one-shot Chat Completions call, no
-  streaming (Phase 5) and no tool calls (Phase 4) yet — every submitted
-  prompt fully replaces the deck via the existing `loadDeck` store action.
+  failure). This is deliberately a one-shot Chat Completions call with no
+  tool calls. **Not called directly by the client anymore** (see the
+  `generate_deck` tool under Agentic refinement pipeline below) — the
+  route stays as a standalone, independently-usable endpoint (e.g. a
+  future "New Deck" button), and `generateDeckFromPrompt()` is the
+  function Phase 4's `/api/chat` route calls internally when the model
+  decides a wholesale new deck is needed. `lib/ai/jsonSchemaFragments.ts`
+  holds the
+  JSON-schema pieces (content block anyOf, layout hints, slide type enum)
+  shared between `deckJsonSchema.ts` and Phase 4's tool parameter schemas;
+  `lib/ai/normalize.ts` holds the null→undefined conversion shared between
+  `normalizeGeneratedDeck.ts` and Phase 4's `applyToolCalls.ts` — don't
+  duplicate either, extend the shared file.
+- **Agentic refinement pipeline** (Phase 4, `app/api/chat/route.ts` +
+  `lib/ai/tools.ts` + `lib/ai/deckContext.ts` + `lib/ai/applyToolCalls.ts`):
+  since the OpenAI key must stay server-side but the Zustand deck store
+  only exists client-side, tool _execution_ can't happen on the server —
+  the route runs the OpenAI tool-calling turn and returns a list of
+  validated `{tool, args}` calls; the client (`ChatPanel.tsx`) applies each
+  one via `applyToolCalls.ts`, which calls the exact same `useDeckStore`
+  actions manual editing uses (`addSlide`/`updateSlide`/`deleteSlide`/
+  `reorderSlides`/`changeLayout`) — no separate mutation path, so a tool
+  call is a targeted patch by construction. Each tool's parameters are a
+  hand-written strict JSON Schema (same subset-of-JSON-Schema constraint as
+  `deckJsonSchema.ts`); on `update_slide`/`change_layout`, every field is
+  nullable and `null` means "leave unchanged" (not "clear it") — the
+  system prompt spells this convention out explicitly, and
+  `applyToolCalls.ts` only includes non-null fields in the store patch.
+  `lib/ai/deckContext.ts` compacts the current deck (every slide's real
+  id + type + title + a short content summary, no speaker notes) into the
+  system prompt so the model can reference exact slide ids without the
+  full deck JSON eating the context budget. **Verified against the live
+  OpenAI API**: "make slide 2 more concise" produced exactly one
+  `update_slide` call on the correct id; "add a pricing slide after X"
+  produced a correctly-indexed `add_slide` call.
+  - **Bug found + fixed after initial ship**: the very first version only
+    sent `[system, currentMessage]` to OpenAI on every `/api/chat` call —
+    no prior turns — so any multi-turn exchange (model asks "which
+    slide?", user replies "3rd slide") lost all context and the model
+    just asked another generic clarifying question forever. Fixed by
+    having `ChatPanel.tsx` send the chatStore message history (everything
+    before the just-added current message) as `history` in the request
+    body, and the route now builds `[system, ...history, currentMessage]`.
+    Verified live: the exact "which slide? → 3rd slide" exchange now
+    resolves correctly instead of looping. `history` is validated
+    server-side (`HistoryMessageSchema.array()`) and defaults to `[]` if
+    omitted, so it degrades gracefully rather than 400ing.
+  - Also found+fixed while verifying the above: `change_layout` only sets
+    `type`/`layout`, never `body` — so "change slide 3 to a table" alone
+    produced a slide with `type: "table"` but the OLD bullets block still
+    in `body`, which `TableSlide.tsx` can't render ("No table content
+    yet."). The system prompt now explicitly tells the model that
+    reshaping content (not just relabeling it) requires pairing
+    `change_layout` with an `update_slide` call carrying a properly-shaped
+    body in the same turn. Verified live: now correctly returns both
+    tool calls together with a real table body derived from the bullets.
+  - `console.log` at every stage (unconditional, not gated behind an env
+    check — the user asked for this directly, not the earlier
+    dev-only-gated version, since this is a single-environment project and
+    they'll strip the logs themselves before a real commit): incoming
+    request, exact messages array sent to OpenAI, raw model response,
+    dropped/invalid tool calls, outgoing response, and each tool call as
+    the client applies it, in both `route.ts` and `ChatPanel.tsx`. This is
+    what surfaced every bug on this list — keep it (or something like it)
+    when extending the chat flow.
+  - **Bigger bug found + fixed after that**: the original design routed by
+    a client-side `hasGeneratedOnce` flag — the very first message in a
+    session always went to `/api/generate` (bulk generation) regardless of
+    content, every message after went to `/api/chat` (targeted tools).
+    Reported symptom: "delete slide 2" did nothing. Root cause: since the
+    app always has _some_ deck loaded (the seed deck counts), a first
+    message that isn't actually a generation request (like "delete slide
+    2") still got sent to `/api/generate` as if it were a topic prompt —
+    confirmed live: that exact string generated an unrelated "Renewable
+    Energy" deck, silently replacing everything, with nothing deleted.
+    **Fixed by unifying into one endpoint and one real decision-maker**:
+    added a sixth tool, `generate_deck(prompt)`, alongside the five
+    editing tools in `lib/ai/tools.ts` / `TOOL_DEFINITIONS` — now _every_
+    message, from the first one on, goes to `/api/chat`, and the model
+    itself decides whether to call `generate_deck` (wholesale new deck) or
+    one/more targeted tools, using real judgment instead of a client-side
+    guess. When the model calls `generate_deck`, the route itself invokes
+    the existing `generateDeckFromPrompt()` (Phase 3's pipeline, reused
+    as-is, zero duplication) and returns `{ reply, toolCalls: [],
+generatedDeck }`; `ChatPanel.tsx` calls `loadDeck()` on that instead of
+    applying tool calls. `chatStore.ts`'s `hasGeneratedOnce`/
+    `markGenerated` were removed entirely (no longer meaningful).
+    `applyToolCalls.ts` has a defensive (should-be-unreachable)
+    `generate_deck` case that warns and no-ops, since the server should
+    always intercept it first. Verified live both ways: "delete slide 2"
+    (as literally the first message) now correctly calls `delete_slide`;
+    "Create a 4-slide deck about X" still correctly calls `generate_deck`
+    and replaces the deck. This also resolves the "no UI path to trigger
+    regeneration after the first prompt" limitation from the initial
+    Phase 4 report — the model can now call `generate_deck` at any point.
 - **Chat UI**: `store/chatStore.ts` (message list, persisted; `isGenerating`
-  flag, deliberately excluded from persistence via `partialize` so a
-  mid-request refresh never restores a stuck "Generating…" state) and
-  `components/chat/ChatPanel.tsx` (a real client component: textarea +
-  submit, posts to `/api/generate`, shows a loading state, then an assistant
-  summary message).
+  flag deliberately excluded via `partialize` so a mid-request refresh
+  never restores a stuck loading state) and `components/chat/ChatPanel.tsx`
+  (textarea + submit, always posts to `/api/chat` with the current deck +
+  prior message history; branches on `data.generatedDeck` vs
+  `data.toolCalls` in the response, not on anything decided client-side;
+  shows a generic "Thinking…" while awaiting, since which path the model
+  will take isn't known in advance).
 - **Layout**: fixed desktop/MacBook layout, not responsive — the user
   explicitly deprioritized cross-device support. `app/page.tsx` is always
   `flex-row` (no `md:` breakpoints): a fixed `w-[380px]` chat sidebar
@@ -176,8 +270,8 @@ the status tracker.
 | 0     | Project Scaffolding & Shell UI                                    | ✅ Done — committed `chore: scaffold Next.js app with two-pane shell UI`, pushed to `origin/main`                             |
 | 1     | Slide Schema & Deck State Model                                   | ✅ Done — committed `feat: add slide schema and deck state model`, pushed to `origin/main`                                    |
 | 2     | Manual Editing (Complete, AI-Free Product)                        | ✅ Done — 6 commits (creation/deletion/reordering/text-editing/SSR fix/persistence), reviewed and manually tested by the user |
-| 3     | AI Initial Generation (two-phase gen, phase 1)                    | ✅ Done — uncommitted (user commits themselves); verified end-to-end against the live OpenAI API                              |
-| 4     | Agentic Tool-Use & Diff-Based Refinement (two-phase gen, phase 2) | Not started                                                                                                                   |
+| 3     | AI Initial Generation (two-phase gen, phase 1)                    | ✅ Done — committed, not yet pushed; verified end-to-end against the live OpenAI API                                          |
+| 4     | Agentic Tool-Use & Diff-Based Refinement (two-phase gen, phase 2) | ✅ Done — uncommitted (user commits themselves); verified end-to-end against the live OpenAI API                              |
 | 5     | Streaming                                                         | Not started                                                                                                                   |
 | 6     | Rich Content: Images, Charts, Tables                              | Not started                                                                                                                   |
 | 7     | Export                                                            | Not started                                                                                                                   |

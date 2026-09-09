@@ -1,6 +1,7 @@
 import { createId } from "@/lib/id";
-import type { ContentBlock, Deck, Slide } from "@/lib/schema/slide";
+import type { Deck, Slide } from "@/lib/schema/slide";
 import type { GeneratedDeck } from "./deckGenerationSchema";
+import { normalizeBlock, normalizeLayout } from "./normalize";
 
 export function normalizeGeneratedDeck(generated: GeneratedDeck): Deck {
   return {
@@ -11,18 +12,8 @@ export function normalizeGeneratedDeck(generated: GeneratedDeck): Deck {
       type: slide.type,
       title: slide.title,
       subtitle: slide.subtitle ?? undefined,
-      body: slide.body.map((block): ContentBlock => ({
-        ...block,
-        column: block.column ?? undefined,
-      })),
-      layout: slide.layout
-        ? {
-            align: slide.layout.align ?? undefined,
-            columns: slide.layout.columns ?? undefined,
-            columnTitles: slide.layout.columnTitles ?? undefined,
-            density: slide.layout.density ?? undefined,
-          }
-        : undefined,
+      body: slide.body.map(normalizeBlock),
+      layout: normalizeLayout(slide.layout),
       speakerNotes: slide.speakerNotes,
     })),
   };
