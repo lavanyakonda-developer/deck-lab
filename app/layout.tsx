@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { ExportButton } from "@/components/ExportButton";
+import { ExportActions } from "@/components/ExportActions";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,7 +29,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
             Deck Lab
           </span>
-          <ExportButton />
+          <ExportActions />
         </header>
         <div className="flex min-h-0 flex-1 flex-col">{children}</div>
       </body>
