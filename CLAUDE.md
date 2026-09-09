@@ -200,14 +200,16 @@ for every remaining phase without being re-asked:
   `feat: render slides in preview panel`, `feat: add manual slide creation`,
   `feat: add slide deletion`, `feat: add slide reordering`,
   `feat: add manual text editing`.
-- Commit at the end of each phase (one commit per phase is the norm so far,
-  named for the phase's dominant change).
-- Every commit ends with the standard attribution footer (Co-Authored-By /
-  Claude-Session lines) — this is handled automatically by the assistant,
-  not something to ask the user about.
-- **Never push without an explicit, separate request.** Commit locally as
-  part of finishing a phase; push only when the user says so. Remote
-  `origin` is already set to
+- **Do not commit at the end of a phase.** As of the Phase 1 approval, the
+  user commits locally themselves — leave changes staged/unstaged when a
+  phase is done. Do not run `git commit` unless the user explicitly asks for
+  it in that turn. (Phases 0 and 1 were committed by the assistant, following
+  the convention below; that practice stopped there.)
+- When the user does ask for a commit, use the prefixes below and end the
+  message with the standard attribution footer (Co-Authored-By /
+  Claude-Session lines).
+- **Never push without an explicit, separate request**, regardless of who
+  made the commit. Remote `origin` is already set to
   `https://github.com/lavanyakonda-developer/deck-lab.git`.
 - Prefer new commits over amending, except when the user explicitly asks to
   fix up the most recent commit message/content (as happened once for the
