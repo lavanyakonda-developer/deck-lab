@@ -143,6 +143,20 @@ thumbnail rail): `ui-reference.png` (repo root).
   OpenAI API**: "make slide 2 more concise" produced exactly one
   `update_slide` call on the correct id; "add a pricing slide after X"
   produced a correctly-indexed `add_slide` call.
+  - **The reverse direction of "selection follows edits" also holds**:
+    `ChatPanel.tsx` sends `selectedSlideId` (the slide currently shown in
+    the canvas) alongside `message`/`deck`/`history`; `serializeDeckContext`
+    marks that slide's line with `(currently selected/viewed by the
+user)`, and the system prompt explicitly tells the model to resolve an
+    unqualified request ("change the title to X", "make this more
+    concise" - no slide named) to that marked slide instead of asking
+    which one. Without this, the model has no way to know what "this
+    slide" or an implicit reference even means and (correctly, given no
+    context) asks a clarifying question every time - verified live:
+    "change title to JS Components" with slide 3 selected resolved
+    straight to an `update_slide` call on that exact id, no clarifying
+    question. `selectedSlideId` is optional server-side (defaults to no
+    slide marked) so older/partial requests don't fail.
   - **Bug found + fixed after initial ship**: the very first version only
     sent `[system, currentMessage]` to OpenAI on every `/api/chat` call —
     no prior turns — so any multi-turn exchange (model asks "which
@@ -283,6 +297,91 @@ generatedDeck }`; `ChatPanel.tsx` calls `loadDeck()` on that instead of
     `tool-call` the moment its arguments completed; an ambiguous request
     streamed 49 real `text-delta` fragments; `generate_deck` fired through
     the unified `/api/chat` endpoint streamed 5 `slide` events + `done`.
+- **Rich content** (Phase 6, M11): `chart` and `image` are **content block
+  types** (like `bullets`/`paragraph`/`table`), not new `SlideType` values -
+  this follows the Phase 1 design note above, not `phases.txt`'s literal
+  (looser, earlier-written) file list naming `ChartSlide.tsx`/
+  `ImageSlide.tsx`. Both extend `lib/schema/slide.ts`'s
+  `ContentBlockSchema`, the shared JSON-schema fragments
+  (`jsonSchemaFragments.ts`), the AI generation validation schema
+  (`deckGenerationSchema.ts`), and `normalize.ts` (extended to convert a
+  chart/image block's nullable `caption`, and to stamp `url: null` onto an
+  image block since the model never provides one). Rendering/editing lives
+  in `EditableContentBlock.tsx`'s existing switch, alongside
+  bullets/paragraph/table: `chart` renders via Recharts (bar/line/pie
+  chosen by `chartType`, `Cell` used for pie-slice colors — deprecated in
+  Recharts 3.x in favor of a `shape` prop but still functional through
+  3.x, not migrated since it's a cosmetic IDE hint, not a real issue);
+  `image` renders the real `<img>` when `url` is set, else an animated-
+  pulse placeholder showing the alt text (this same placeholder is also
+  the permanent "generation failed" fallback - there's no separate error
+  state).
+  - **Scope decision**: manual editing is plain text only (title/subtitle,
+    bullets, paragraphs). table/chart/image are deliberately **read-only**
+    in `EditableContentBlock.tsx` - no `InlineEditable` on table
+    headers/cells or on chart/image captions (captions still _display_
+    when the AI sets one, just aren't click-to-edit), and there is no
+    manual "add row"/similar control for any of the three. Changing any of
+    these three block types goes through chat, not manual click - don't
+    add InlineEditable back onto them without an explicit ask to reopen
+    this scope.
+  - **Bulk generation always includes rich content by default**:
+    `DECK_GENERATION_SYSTEM_PROMPT` (`generateDeck.ts`) requires a specific
+    structure for every deck it generates - title slide first, a dedicated
+    closing/summary slide last, and _exactly one_ chart slide + _exactly
+    one_ image slide somewhere in between (never as the closing slide,
+    never last). The first version of this instruction just said "use a
+    chart/image when it fits" and the model reliably skipped the chart
+    and/or tacked the image on as the last slide with no closing slide at
+    all - verified live across multiple prompts before landing on the
+    stronger, structural wording above (also verified live, consistently
+    correct across multiple different topics after the change). This only
+    applies to bulk generation (`generateDeckFromPrompt`/
+    `generateDeckStreamed`) - the separate chat-refinement system prompt
+    in `app/api/chat/route.ts` intentionally stays request-driven (add a
+    chart/image only when asked), not defaulted.
+  - **Charts render with `isAnimationActive={false}`** on `Pie`/`Line`/
+    `Bar` - no entry animation (bars growing, lines drawing in, pie
+    sweeping), just an immediate static render. Explicit ask, not a
+    default Recharts behavior to leave alone.
+  - **Images are generated asynchronously, after the fact, client-side** -
+    not by the model itself. The model only ever supplies `alt` text (no
+    `url` field exists in its tool/generation schema at all); `lib/ai/
+generateImage.ts`'s `generateImageForSlide()` POSTs that alt text to
+    `app/api/generate-image/route.ts`, and on success patches the
+    resulting `url` into the _matching_ block (found by `slideId` + `alt`
+    - `url === null`, not a fixed array index, since the slide may have
+      been edited elsewhere while generation was in flight). This keeps
+      Phase 5's fast slide/tool-call streaming un-blocked by slow (several-
+      second) image calls - a slide or edit lands immediately with a
+      placeholder, the image fills in later. `ChatPanel.tsx` calls
+      `triggerPendingImageGeneration()` after every SSE event in the loop,
+      scanning the _whole current deck_ for any block with `url === null`
+      not already triggered this turn (a `Set` de-dupes across the many
+      events in one response) and firing generation for each,
+      fire-and-forget (`void ...`, never awaited).
+  - **`/api/generate-image/route.ts`** (plain JSON request/response, not
+    streamed - phases.txt's tech-work list doesn't call for that, and a
+    single image isn't meaningfully incremental): calls
+    `client.images.generate()`. **Real API behavior differed from the
+    installed SDK's type hints, discovered only via live testing**: the
+    account this project uses has no `dall-e-3` access at all ("model
+    does not exist"), so the model is `gpt-image-1`; `quality: "standard"`
+    (a dall-e-3-only value) is invalid for it (must be
+    `low`/`medium`/`high`/`auto` - using `medium`); and `response_format`
+    is entirely unrecognized as a parameter for GPT image models (they
+    always return `b64_json`, never a `url`, so the field doesn't need
+    requesting). This turned out to conveniently match the original
+    design intent anyway - a permanent `data:` URI, not a URL that expires
+    after OpenAI's ~60 minutes (which would break a deck already sitting
+    in localStorage). Uses `output_format: "jpeg"` +
+    `output_compression: 70` to keep the base64 payload manageable against
+    localStorage's quota - confirmed live this cuts payload size roughly
+    13x (a lossless 1024×1024 PNG ran ~1.6MB; jpeg70 ran ~165KB). **If
+    testing against a different OpenAI account/project, re-verify which
+    image model is actually available** before assuming this config is
+    portable - don't trust the SDK's TypeScript types alone here, they
+    documented options this account's API rejected.
 - **Layout**: fixed desktop/MacBook layout, not responsive — the user
   explicitly deprioritized cross-device support. `app/page.tsx` is always
   `flex-row` (no `md:` breakpoints): a fixed `w-[380px]` chat sidebar
@@ -353,8 +452,8 @@ the status tracker.
 | 2     | Manual Editing (Complete, AI-Free Product)                        | ✅ Done — 6 commits (creation/deletion/reordering/text-editing/SSR fix/persistence), reviewed and manually tested by the user |
 | 3     | AI Initial Generation (two-phase gen, phase 1)                    | ✅ Done — committed, not yet pushed; verified end-to-end against the live OpenAI API                                          |
 | 4     | Agentic Tool-Use & Diff-Based Refinement (two-phase gen, phase 2) | ✅ Done — committed, not yet pushed; verified end-to-end against the live OpenAI API                                          |
-| 5     | Streaming                                                         | ✅ Done — uncommitted (user commits themselves); verified end-to-end against the live OpenAI API                              |
-| 6     | Rich Content: Images, Charts, Tables                              | Not started                                                                                                                   |
+| 5     | Streaming                                                         | ✅ Done — committed, not yet pushed; verified end-to-end against the live OpenAI API                                          |
+| 6     | Rich Content: Images, Charts, Tables                              | ✅ Done — uncommitted (user commits themselves); verified end-to-end against the live OpenAI API                              |
 | 7     | Export                                                            | Not started                                                                                                                   |
 | 8     | Unified Undo/Redo (Nice to Have)                                  | Not started                                                                                                                   |
 | 9     | Themes / Templates (Nice to Have)                                 | Not started                                                                                                                   |
