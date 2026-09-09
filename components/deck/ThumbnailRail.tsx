@@ -48,6 +48,7 @@ export function ThumbnailRail() {
         </p>
       ) : (
         <DndContext
+          id="thumbnail-rail"
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
