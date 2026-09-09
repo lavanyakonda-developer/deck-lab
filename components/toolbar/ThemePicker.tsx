@@ -14,14 +14,14 @@ export function ThemePicker() {
   const setSlideTheme = useDeckStore((state) => state.setSlideTheme);
 
   return (
-    <div className="flex items-center gap-1 rounded-md border border-zinc-200 p-0.5 dark:border-zinc-800">
+    <div className="flex items-center gap-1 rounded-lg border border-zinc-100 p-1 dark:border-zinc-900">
       {OPTIONS.map((name) => (
         <button
           key={name}
           type="button"
           onClick={() => setSlideTheme(name)}
           aria-pressed={slideTheme === name}
-          className={`rounded px-2 py-1 text-sm transition-colors ${
+          className={`rounded-md px-2.5 py-1 text-sm font-medium transition-colors ${
             slideTheme === name
               ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
               : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"

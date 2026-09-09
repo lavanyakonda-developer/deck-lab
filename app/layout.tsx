@@ -1,17 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import { ExportActions } from "@/components/ExportActions";
 import { ThemePicker } from "@/components/toolbar/ThemePicker";
 import { UndoRedo } from "@/components/toolbar/UndoRedo";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
@@ -22,13 +17,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+    <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="flex h-full min-h-full flex-col overflow-hidden">
-        <header className="flex h-12 shrink-0 items-center justify-between border-b border-zinc-200 px-4 dark:border-zinc-800">
-          <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-100 px-6 dark:border-zinc-900">
+          <span className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             Deck Lab
           </span>
           <div className="flex items-center gap-6">

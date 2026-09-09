@@ -41,7 +41,7 @@ export function ExportActions() {
         type="button"
         onClick={() => void handleDownloadPdf()}
         disabled={isExportingPdf || slideCount === 0}
-        className="text-sm text-zinc-500 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-100"
+        className="text-sm font-medium text-zinc-500 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-100"
       >
         {"Download PDF"}
       </button>
@@ -49,7 +49,7 @@ export function ExportActions() {
         type="button"
         onClick={() => void handleDownloadPptx()}
         disabled={isExportingPptx || slideCount === 0}
-        className="text-sm text-zinc-500 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-100"
+        className="text-sm font-medium text-zinc-500 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-100"
       >
         {"Download PPTX"}
       </button>

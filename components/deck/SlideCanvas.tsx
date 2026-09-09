@@ -13,9 +13,9 @@ export function SlideCanvas() {
     slides.find((slide) => slide.id === selectedSlideId) ?? slides[0] ?? null;
 
   return (
-    <div className="flex min-w-0 flex-1 items-center justify-center overflow-auto bg-zinc-100 p-6 dark:bg-zinc-900">
+    <div className="flex min-w-0 flex-1 items-center justify-center overflow-auto bg-zinc-100 p-8 dark:bg-zinc-900">
       <div
-        className="aspect-video w-full max-w-4xl overflow-hidden rounded-lg border shadow-sm"
+        className="aspect-video w-full max-w-4xl overflow-hidden rounded-xl border shadow-sm"
         style={{ background: theme.background, borderColor: theme.border }}
       >
         {selectedSlide ? (

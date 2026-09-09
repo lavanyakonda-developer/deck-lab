@@ -58,7 +58,7 @@ export function SlideThumbnail({
       role="button"
       tabIndex={0}
       aria-current={isSelected}
-      className={`group relative flex h-16 w-28 shrink-0 cursor-grab flex-col justify-between rounded-md border px-2 py-1.5 text-left transition-colors active:cursor-grabbing ${
+      className={`group relative flex h-16 w-28 shrink-0 cursor-grab flex-col justify-between rounded-lg border px-2.5 py-2 text-left transition-colors active:cursor-grabbing ${
         isDragging ? "opacity-50" : ""
       }`}
     >

@@ -49,7 +49,7 @@ export function UndoRedo() {
         disabled={!canUndo}
         aria-label="Undo (Cmd/Ctrl+Z)"
         title="Undo (Cmd/Ctrl+Z)"
-        className="text-sm text-zinc-500 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-100"
+        className="text-sm font-medium text-zinc-500 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-100"
       >
         Undo
       </button>
@@ -59,7 +59,7 @@ export function UndoRedo() {
         disabled={!canRedo}
         aria-label="Redo (Cmd/Ctrl+Shift+Z)"
         title="Redo (Cmd/Ctrl+Shift+Z)"
-        className="text-sm text-zinc-500 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-100"
+        className="text-sm font-medium text-zinc-500 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-100"
       >
         Redo
       </button>

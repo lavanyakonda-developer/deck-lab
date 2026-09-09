@@ -155,27 +155,26 @@ export function ChatPanel() {
   };
 
   return (
-    <aside className="flex h-full w-[380px] shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-          Chat
+    <aside className="flex h-full w-[380px] shrink-0 flex-col border-r border-zinc-100 bg-white dark:border-zinc-900 dark:bg-zinc-950">
+      <div className="border-b border-zinc-100 px-5 py-4 dark:border-zinc-900">
+        <h2 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+          Your AI-Powered Presentation Builder
         </h2>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">
           Describe a presentation or ask for changes.
         </p>
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
+      <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-5  justify-center">
         {messages.length === 0 ? (
-          <p className="mx-auto mt-8 max-w-[220px] text-center text-sm text-zinc-400 dark:text-zinc-600">
-            Describe a presentation to generate your first draft — e.g.
-            &ldquo;Create a 5-slide deck on our Q3 product roadmap&rdquo;.
+          <p className="mx-auto mt-8 max-w-[240px] text-center text-sm leading-relaxed text-zinc-400 dark:text-zinc-600">
+            What are you looking to present today?
           </p>
         ) : (
           messages.map((message) => (
             <div
               key={message.id}
-              className={`max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
+              className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
                 message.role === "user"
                   ? "self-end bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
                   : "self-start bg-zinc-100 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
@@ -186,7 +185,7 @@ export function ChatPanel() {
           ))
         )}
         {showThinking && (
-          <div className="self-start rounded-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
+          <div className="self-start rounded-xl bg-zinc-100 px-3.5 py-2.5 text-sm text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
             Thinking…
           </div>
         )}
@@ -197,7 +196,7 @@ export function ChatPanel() {
           e.preventDefault();
           void submitPrompt();
         }}
-        className="border-t border-zinc-200 p-3 dark:border-zinc-800"
+        className="border-t border-zinc-100 p-4 dark:border-zinc-900"
       >
         <div className="flex items-end gap-2">
           <textarea
@@ -211,13 +210,13 @@ export function ChatPanel() {
             }}
             disabled={isGenerating}
             rows={2}
-            placeholder="Ask the AI to generate or edit slides…"
-            className="flex-1 resize-none rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+            placeholder="Ask anything…"
+            className="flex-1 resize-none rounded-lg border border-zinc-200 bg-zinc-50 px-3.5 py-2.5 text-sm leading-relaxed text-zinc-900 placeholder:text-zinc-400 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
           />
           <button
             type="submit"
             disabled={isGenerating || !input.trim()}
-            className="h-9 shrink-0 rounded-md bg-zinc-900 px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-50 dark:text-zinc-900"
+            className="h-10 shrink-0 rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-50 dark:text-zinc-900"
           >
             Send
           </button>
