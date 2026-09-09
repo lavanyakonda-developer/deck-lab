@@ -6,6 +6,8 @@ export to PDF or PPTX. Built for the Sarvam AI technical assignment.
 
 #### Deployed on - https://deck-lab-vert.vercel.app/
 
+#### claude transcript - https://github.com/lavanyakonda-developer/deck-lab/blob/main/AI%20Session%20Transcript%201.pdf
+
 ## Setup
 
 **Prerequisites:** Node.js 20+, npm, an [OpenAI API key](https://platform.openai.com/api-keys).
