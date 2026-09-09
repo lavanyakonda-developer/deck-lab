@@ -15,6 +15,7 @@ function makeDeck(): Deck {
 }
 
 beforeEach(() => {
+  localStorage.clear();
   const deck = makeDeck();
   useDeckStore.setState({ deck, selectedSlideId: deck.slides[0].id });
 });
@@ -130,5 +131,35 @@ describe("deckStore", () => {
     const state = useDeckStore.getState();
     expect(state.deck.id).toBe("deck-2");
     expect(state.selectedSlideId).toBe(newDeck.slides[0].id);
+  });
+
+  it("persists the deck to localStorage after a mutation", () => {
+    useDeckStore.getState().updateSlide("a", { title: "Persisted Title" });
+    const raw = localStorage.getItem("deck-lab:deck");
+    expect(raw).toBeTruthy();
+    const parsed = JSON.parse(raw as string);
+    expect(
+      parsed.state.deck.slides.find((slide: { id: string }) => slide.id === "a")
+        .title,
+    ).toBe("Persisted Title");
+  });
+
+  it("rehydrates in-memory state from localStorage via persist.rehydrate()", async () => {
+    const persistedDeck = makeDeck();
+    persistedDeck.slides[0].title = "From A Previous Session";
+    localStorage.setItem(
+      "deck-lab:deck",
+      JSON.stringify({
+        state: { deck: persistedDeck, selectedSlideId: "a" },
+        version: 0,
+      }),
+    );
+
+    await useDeckStore.persist.rehydrate();
+
+    expect(
+      useDeckStore.getState().deck.slides.find((slide) => slide.id === "a")
+        ?.title,
+    ).toBe("From A Previous Session");
   });
 });
