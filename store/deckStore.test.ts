@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Deck } from "@/lib/schema/slide";
 import { useDeckStore } from "./deckStore";
+import { createHistoryState } from "./historyMiddleware";
 
 function makeDeck(): Deck {
   return {
@@ -17,7 +18,11 @@ function makeDeck(): Deck {
 beforeEach(() => {
   localStorage.clear();
   const deck = makeDeck();
-  useDeckStore.setState({ deck, selectedSlideId: deck.slides[0].id });
+  useDeckStore.setState({
+    deck,
+    selectedSlideId: deck.slides[0].id,
+    history: createHistoryState(),
+  });
 });
 
 describe("deckStore", () => {
@@ -161,5 +166,120 @@ describe("deckStore", () => {
       useDeckStore.getState().deck.slides.find((slide) => slide.id === "a")
         ?.title,
     ).toBe("From A Previous Session");
+  });
+
+  describe("undo/redo", () => {
+    it("undo restores a slide's prior text after a manual-style edit", () => {
+      useDeckStore.getState().updateSlide("a", { title: "Edited" });
+      expect(
+        useDeckStore.getState().deck.slides.find((s) => s.id === "a")?.title,
+      ).toBe("Edited");
+
+      useDeckStore.getState().undo();
+
+      expect(
+        useDeckStore.getState().deck.slides.find((s) => s.id === "a")?.title,
+      ).toBe("First");
+    });
+
+    it("undo removes a slide added via the same action an AI tool call uses, and redo brings it back", () => {
+      const id = useDeckStore.getState().addSlide({
+        type: "content",
+        title: "AI Added",
+        body: [],
+        speakerNotes: "",
+      });
+      expect(useDeckStore.getState().deck.slides.map((s) => s.id)).toContain(
+        id,
+      );
+
+      useDeckStore.getState().undo();
+      expect(
+        useDeckStore.getState().deck.slides.map((s) => s.id),
+      ).not.toContain(id);
+
+      useDeckStore.getState().redo();
+      expect(useDeckStore.getState().deck.slides.map((s) => s.id)).toContain(
+        id,
+      );
+    });
+
+    it("undoes an interleaved sequence of manual and AI-style actions in true chronological order", () => {
+      // "manual" edit
+      useDeckStore.getState().updateSlide("a", { title: "Manual Edit" });
+      // "AI" tool call
+      useDeckStore.getState().deleteSlide("b");
+      // "manual" edit again
+      useDeckStore.getState().updateSlide("c", { title: "Manual Edit 2" });
+
+      expect(useDeckStore.getState().deck.slides.map((s) => s.title)).toEqual([
+        "Manual Edit",
+        "Manual Edit 2",
+      ]);
+
+      useDeckStore.getState().undo(); // undo "Manual Edit 2"
+      expect(useDeckStore.getState().deck.slides.map((s) => s.title)).toEqual([
+        "Manual Edit",
+        "Third",
+      ]);
+
+      useDeckStore.getState().undo(); // undo the delete
+      expect(useDeckStore.getState().deck.slides.map((s) => s.title)).toEqual([
+        "Manual Edit",
+        "Second",
+        "Third",
+      ]);
+
+      useDeckStore.getState().undo(); // undo "Manual Edit"
+      expect(useDeckStore.getState().deck.slides.map((s) => s.title)).toEqual([
+        "First",
+        "Second",
+        "Third",
+      ]);
+
+      expect(useDeckStore.getState().history.undoStack).toHaveLength(0);
+    });
+
+    it("undo on an empty history is a no-op", () => {
+      const before = useDeckStore.getState().deck;
+      useDeckStore.getState().undo();
+      expect(useDeckStore.getState().deck).toBe(before);
+    });
+
+    it("redo on an empty redo stack is a no-op", () => {
+      useDeckStore.getState().updateSlide("a", { title: "Edited" });
+      const before = useDeckStore.getState().deck;
+      useDeckStore.getState().redo();
+      expect(useDeckStore.getState().deck).toBe(before);
+    });
+
+    it("a new action after an undo discards the redo branch", () => {
+      useDeckStore.getState().updateSlide("a", { title: "First Edit" });
+      useDeckStore.getState().undo();
+      expect(useDeckStore.getState().history.redoStack).toHaveLength(1);
+
+      useDeckStore.getState().updateSlide("a", { title: "Different Edit" });
+
+      expect(useDeckStore.getState().history.redoStack).toHaveLength(0);
+      useDeckStore.getState().redo(); // no-op, nothing to redo
+      expect(
+        useDeckStore.getState().deck.slides.find((s) => s.id === "a")?.title,
+      ).toBe("Different Edit");
+    });
+
+    it("undo/redo do not touch selection-only changes (selectSlide isn't part of history)", () => {
+      useDeckStore.getState().selectSlide("c");
+      useDeckStore.getState().updateSlide("a", { title: "Edited" });
+      useDeckStore.getState().selectSlide("b");
+
+      useDeckStore.getState().undo();
+
+      // The undo point captured before updateSlide had selection "c", not
+      // the later "b" - selecting afterward doesn't create its own step.
+      expect(useDeckStore.getState().selectedSlideId).toBe("c");
+      expect(
+        useDeckStore.getState().deck.slides.find((s) => s.id === "a")?.title,
+      ).toBe("First");
+    });
   });
 });

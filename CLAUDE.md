@@ -466,8 +466,48 @@ true` so SSR/first paint always match their in-code defaults;
 - **Charts** (Phase 6): Recharts.
 - **Images** (Phase 6): OpenAI image generation via a server route, with a
   graceful placeholder fallback.
-- **Export** (Phase 7): CSS print stylesheet baseline (`window.print()` →
-  PDF). `pptxgenjs` as a stretch add-on in the same phase if time permits.
+- **Export** (Phase 7): both PDF and PPTX are one-click, direct-download
+  exports - no print dialog. `lib/export/pptx.ts` (`pptxgenjs`) and
+  `lib/export/pdf.ts` (`jsPDF` + `jspdf-autotable`) each independently
+  rebuild every slide as a 16:9 page from the deck data (not a DOM
+  screenshot), including redrawing bar/line/pie charts as native
+  vector shapes - `pdf.ts` uses jsPDF's own `context2d` API for this
+  (emits real PDF drawing operators, no `<canvas>`/DOM dependency, so
+  it's unit-testable in Node) rather than an actual browser canvas.
+  Superseded an earlier `window.print()` → "Save as PDF" baseline,
+  replaced at the user's request for a true one-click download matching
+  the PPTX button's UX.
+  - **Bug found + fixed**: `context2d.font`'s `"Npx"` parsing multiplies
+    the number by the document's unit scale factor (72, since the PDF is
+    built in inches) instead of converting real pixels to points - an
+    "8px" chart label silently became a ~576pt font, bleeding across the
+    page. Fixed by drawing all chart text via jsPDF's core `doc.text()`
+    (real point sizes, unaffected by document unit) and using
+    `context2d` only for vector shapes (arcs/rects/lines) - confirmed by
+    inspecting the raw PDF's `Tf` (font-size) operators directly.
+- **Undo/redo** (Phase 8): `store/historyMiddleware.ts` is a small, pure,
+  framework-agnostic undo/redo stack (`pushHistory`/`undoHistory`/
+  `redoHistory` over a plain `{undoStack, redoStack}` shape) - not a real
+  Zustand middleware, since `set()` has no per-call metadata to hook a
+  generic wrapper into. Every content-mutating `deckStore.ts` action
+  (`addSlide`, `updateSlide`, `deleteSlide`, `reorderSlides`,
+  `changeLayout`, `loadDeck`) pushes the pre-mutation `{deck,
+selectedSlideId}` snapshot onto `history` as part of its own `set()`
+  call, before applying its change - this is what makes undo/redo cover
+  manual edits and AI tool calls identically with no separate mutation
+  path, the same reason M7 holds: both sources already go through these
+  exact actions. `selectSlide` deliberately does NOT push history - it's
+  navigation, not a content change, so switching slides never creates an
+  undo step. `history` is excluded from `persist`'s `partialize` (session
+  -only; a reload starts with an empty stack - resuming a stale undo
+  stack across sessions isn't expected UX, and it would otherwise persist
+  every past snapshot's full deck into localStorage indefinitely). UI:
+  `components/toolbar/UndoRedo.tsx` (buttons in the header, disabled at
+  the ends of history) plus a Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z window
+  keydown listener that explicitly skips when the event target is an
+  editable field (`InlineEditable`'s contentEditable divs, inputs,
+  textareas) so the browser's native per-field undo isn't hijacked while
+  typing.
 - **Deployment**: Vercel.
 
 ### Current Slide Schema Shape (`lib/schema/slide.ts`)
@@ -505,8 +545,8 @@ the status tracker.
 | 4     | Agentic Tool-Use & Diff-Based Refinement (two-phase gen, phase 2) | ✅ Done — committed, not yet pushed; verified end-to-end against the live OpenAI API                                          |
 | 5     | Streaming                                                         | ✅ Done — committed, not yet pushed; verified end-to-end against the live OpenAI API                                          |
 | 6     | Rich Content: Images, Charts, Tables                              | ✅ Done — uncommitted (user commits themselves); verified end-to-end against the live OpenAI API                              |
-| 7     | Export                                                            | Not started                                                                                                                   |
-| 8     | Unified Undo/Redo (Nice to Have)                                  | Not started                                                                                                                   |
+| 7     | Export                                                            | ✅ Done — committed by the user; direct-download PDF + PPTX, no print dialog                                                  |
+| 8     | Unified Undo/Redo (Nice to Have)                                  | ✅ Done — uncommitted; unit tested, not yet manually verified live                                                            |
 | 9     | Themes / Templates (Nice to Have)                                 | Not started                                                                                                                   |
 | 10    | Context Window Management (Nice to Have)                          | Not started                                                                                                                   |
 | 11    | Multiple Presentation Projects (Nice to Have)                     | Not started                                                                                                                   |

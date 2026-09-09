@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ExportActions } from "@/components/ExportActions";
+import { UndoRedo } from "@/components/toolbar/UndoRedo";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,7 +30,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
             Deck Lab
           </span>
-          <ExportActions />
+          <div className="flex items-center gap-6">
+            <UndoRedo />
+            <ExportActions />
+          </div>
         </header>
         <div className="flex min-h-0 flex-1 flex-col">{children}</div>
       </body>
