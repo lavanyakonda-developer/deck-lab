@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ArrowUp } from "lucide-react";
 import { applyToolCall } from "@/lib/ai/applyToolCalls";
 import {
   findPendingImageAlts,
@@ -165,10 +166,11 @@ export function ChatPanel() {
         </p>
       </div>
 
-      <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-5  justify-center">
+      <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-5">
         {messages.length === 0 ? (
-          <p className="mx-auto mt-8 max-w-[240px] text-center text-sm leading-relaxed text-zinc-400 dark:text-zinc-600">
-            What are you looking to present today?
+          <p className="mx-auto mt-8 max-w-[240px] justify-center text-center text-sm leading-relaxed text-zinc-400 dark:text-zinc-600">
+            Try &ldquo;Create a 5-slide deck on javascript&rdquo; to get
+            started.
           </p>
         ) : (
           messages.map((message) => (
@@ -198,7 +200,7 @@ export function ChatPanel() {
         }}
         className="border-t border-zinc-100 p-4 dark:border-zinc-900"
       >
-        <div className="flex items-end gap-2">
+        <div className="relative">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -211,14 +213,16 @@ export function ChatPanel() {
             disabled={isGenerating}
             rows={2}
             placeholder="Ask anything…"
-            className="flex-1 resize-none rounded-lg border border-zinc-200 bg-zinc-50 px-3.5 py-2.5 text-sm leading-relaxed text-zinc-900 placeholder:text-zinc-400 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+            className="w-full resize-none rounded-lg border border-zinc-200 bg-zinc-50 py-2.5 pr-14 pl-3.5 text-sm leading-relaxed text-zinc-900 placeholder:text-zinc-400 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
           />
           <button
             type="submit"
             disabled={isGenerating || !input.trim()}
-            className="h-10 shrink-0 rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-50 dark:text-zinc-900"
+            aria-label="Send"
+            title="Send"
+            className="absolute right-2 bottom-6 flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 text-white disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-50 dark:text-zinc-900"
           >
-            Send
+            <ArrowUp size={18} strokeWidth={2} />
           </button>
         </div>
       </form>
