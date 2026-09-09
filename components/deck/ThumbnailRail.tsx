@@ -14,12 +14,15 @@ import {
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { createBlankSlide } from "@/lib/blankSlide";
+import { getSlideTheme } from "@/lib/themes";
 import { useDeckStore } from "@/store/deckStore";
 import { SlideThumbnail } from "./SlideThumbnail";
 
 export function ThumbnailRail() {
   const slides = useDeckStore((state) => state.deck.slides);
   const selectedSlideId = useDeckStore((state) => state.selectedSlideId);
+  const slideTheme = useDeckStore((state) => state.slideTheme);
+  const theme = getSlideTheme(slideTheme);
   const selectSlide = useDeckStore((state) => state.selectSlide);
   const addSlide = useDeckStore((state) => state.addSlide);
   const deleteSlide = useDeckStore((state) => state.deleteSlide);
@@ -59,6 +62,7 @@ export function ThumbnailRail() {
                 key={slide.id}
                 slide={slide}
                 index={index}
+                theme={theme}
                 isSelected={slide.id === selectedSlideId}
                 onSelect={() => selectSlide(slide.id)}
                 onDelete={() => deleteSlide(slide.id)}

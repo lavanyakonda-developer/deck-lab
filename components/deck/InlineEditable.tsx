@@ -7,6 +7,7 @@ interface InlineEditableProps {
   onCommit: (next: string) => void;
   placeholder?: string;
   className?: string;
+  style?: React.CSSProperties;
   ariaLabel?: string;
 }
 
@@ -24,6 +25,7 @@ export function InlineEditable({
   onCommit,
   placeholder = "Click to edit",
   className = "",
+  style,
   ariaLabel,
 }: InlineEditableProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -73,6 +75,7 @@ export function InlineEditable({
       tabIndex={0}
       dangerouslySetInnerHTML={{ __html: escapeHtml(initialValue) }}
       className={`cursor-text rounded-sm break-words whitespace-pre-wrap outline-none empty:before:text-zinc-400 empty:before:content-[attr(data-placeholder)] focus:ring-2 focus:ring-zinc-300 dark:focus:ring-zinc-700 ${className}`}
+      style={style}
     />
   );
 }

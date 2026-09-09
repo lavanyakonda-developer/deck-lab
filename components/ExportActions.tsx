@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getSlideTheme } from "@/lib/themes";
 import { downloadDeckAsPdf } from "@/lib/export/pdf";
 import { downloadDeckAsPptx } from "@/lib/export/pptx";
 import { useDeckStore } from "@/store/deckStore";
@@ -13,7 +14,8 @@ export function ExportActions() {
   const handleDownloadPdf = async () => {
     setIsExportingPdf(true);
     try {
-      await downloadDeckAsPdf(useDeckStore.getState().deck);
+      const state = useDeckStore.getState();
+      await downloadDeckAsPdf(state.deck, getSlideTheme(state.slideTheme));
     } catch (error) {
       console.error("[export] failed to generate PDF", error);
     } finally {
@@ -24,7 +26,8 @@ export function ExportActions() {
   const handleDownloadPptx = async () => {
     setIsExportingPptx(true);
     try {
-      await downloadDeckAsPptx(useDeckStore.getState().deck);
+      const state = useDeckStore.getState();
+      await downloadDeckAsPptx(state.deck, getSlideTheme(state.slideTheme));
     } catch (error) {
       console.error("[export] failed to generate PPTX", error);
     } finally {

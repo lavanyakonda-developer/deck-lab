@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import type { Deck, LayoutHints, Slide, SlideType } from "@/lib/schema/slide";
 import { createId } from "@/lib/id";
 import { seedDeck } from "@/lib/seedDeck";
+import { DEFAULT_SLIDE_THEME, type SlideThemeName } from "@/lib/themes";
 import {
   createHistoryState,
   pushHistory,
@@ -26,9 +27,11 @@ interface DeckSnapshot {
 interface DeckState {
   deck: Deck;
   selectedSlideId: string | null;
+  slideTheme: SlideThemeName;
   history: HistoryState<DeckSnapshot>;
   loadDeck: (deck: Deck) => void;
   selectSlide: (id: string | null) => void;
+  setSlideTheme: (theme: SlideThemeName) => void;
   addSlide: (slide: NewSlideInput, index?: number) => string;
   updateSlide: (id: string, patch: Partial<Omit<Slide, "id">>) => void;
   deleteSlide: (id: string) => void;
@@ -46,6 +49,7 @@ export const useDeckStore = create<DeckState>()(
     (set, get) => ({
       deck: seedDeck,
       selectedSlideId: seedDeck.slides[0]?.id ?? null,
+      slideTheme: DEFAULT_SLIDE_THEME,
       history: createHistoryState<DeckSnapshot>(),
 
       // Manual edits and AI tool calls both go through these same actions
@@ -64,6 +68,10 @@ export const useDeckStore = create<DeckState>()(
 
       // Pure navigation, not a content change - not part of undo history.
       selectSlide: (id) => set({ selectedSlideId: id }),
+
+      // Presentation preference, not deck content (lib/themes) - not part
+      // of undo history either, same reasoning as selectSlide.
+      setSlideTheme: (theme) => set({ slideTheme: theme }),
 
       addSlide: (slide, index) => {
         const id = slide.id ?? createId("slide");
@@ -211,6 +219,7 @@ export const useDeckStore = create<DeckState>()(
       partialize: (state) => ({
         deck: state.deck,
         selectedSlideId: state.selectedSlideId,
+        slideTheme: state.slideTheme,
       }),
     },
   ),

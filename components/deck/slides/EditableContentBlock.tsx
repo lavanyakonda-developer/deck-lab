@@ -12,17 +12,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { SlideThemeTokens } from "@/lib/themes";
 import type { ContentBlock } from "@/lib/schema/slide";
 import { InlineEditable } from "../InlineEditable";
-
-const CHART_COLORS = [
-  "#2563eb",
-  "#16a34a",
-  "#d97706",
-  "#dc2626",
-  "#7c3aed",
-  "#0891b2",
-];
 
 // Only plain text (bullets, paragraphs - and slide title/subtitle,
 // handled by the slide components) is manually editable in this project's
@@ -30,15 +22,20 @@ const CHART_COLORS = [
 // goes through chat instead.
 export function EditableContentBlock({
   block,
+  theme,
   onChange,
 }: {
   block: ContentBlock;
+  theme: SlideThemeTokens;
   onChange: (next: ContentBlock) => void;
 }) {
   switch (block.type) {
     case "bullets":
       return (
-        <ul className="list-disc space-y-2 pl-5 text-zinc-700 dark:text-zinc-300">
+        <ul
+          className="list-disc space-y-2 pl-5"
+          style={{ color: theme.foreground }}
+        >
           {block.items.map((item, i) => (
             <li key={i}>
               <InlineEditable
@@ -63,7 +60,7 @@ export function EditableContentBlock({
           onCommit={(next) => onChange({ ...block, text: next })}
           placeholder="Paragraph text"
           ariaLabel="Paragraph"
-          className="text-zinc-700 dark:text-zinc-300"
+          style={{ color: theme.foreground }}
         />
       );
     case "table":
@@ -74,7 +71,12 @@ export function EditableContentBlock({
               {block.headers.map((header, hi) => (
                 <th
                   key={hi}
-                  className="border-b border-zinc-300 px-3 py-2 font-semibold text-zinc-900 dark:border-zinc-700 dark:text-zinc-100"
+                  className="border-b px-3 py-2 font-semibold"
+                  style={{
+                    borderColor: theme.border,
+                    color: theme.foreground,
+                    backgroundColor: theme.headerFill,
+                  }}
                 >
                   {header}
                 </th>
@@ -87,7 +89,11 @@ export function EditableContentBlock({
                 {row.map((cell, ci) => (
                   <td
                     key={ci}
-                    className="border-b border-zinc-200 px-3 py-2 text-zinc-700 dark:border-zinc-800 dark:text-zinc-300"
+                    className="border-b px-3 py-2"
+                    style={{
+                      borderColor: theme.border,
+                      color: theme.foreground,
+                    }}
                   >
                     {cell}
                   </td>
@@ -97,7 +103,13 @@ export function EditableContentBlock({
           </tbody>
         </table>
       );
-    case "chart":
+    case "chart": {
+      const axisTick = { fill: theme.muted, fontSize: 12 };
+      const tooltipStyle = {
+        background: theme.background,
+        border: `1px solid ${theme.border}`,
+        color: theme.foreground,
+      };
       return (
         <div className="flex flex-col gap-2">
           <div className="h-56 w-full">
@@ -115,35 +127,43 @@ export function EditableContentBlock({
                     {block.data.map((_, i) => (
                       <Cell
                         key={i}
-                        fill={CHART_COLORS[i % CHART_COLORS.length]}
+                        fill={theme.chartColors[i % theme.chartColors.length]}
                       />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip contentStyle={tooltipStyle} />
                 </PieChart>
               ) : block.chartType === "line" ? (
                 <LineChart data={block.data}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="label" />
-                  <YAxis />
-                  <Tooltip />
+                  <CartesianGrid strokeDasharray="3 3" stroke={theme.border} />
+                  <XAxis
+                    dataKey="label"
+                    tick={axisTick}
+                    stroke={theme.border}
+                  />
+                  <YAxis tick={axisTick} stroke={theme.border} />
+                  <Tooltip contentStyle={tooltipStyle} />
                   <Line
                     type="monotone"
                     dataKey="value"
-                    stroke={CHART_COLORS[0]}
+                    stroke={theme.chartColors[0]}
                     strokeWidth={2}
                     isAnimationActive={false}
                   />
                 </LineChart>
               ) : (
                 <BarChart data={block.data}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="label" />
-                  <YAxis />
-                  <Tooltip />
+                  <CartesianGrid strokeDasharray="3 3" stroke={theme.border} />
+                  <XAxis
+                    dataKey="label"
+                    tick={axisTick}
+                    stroke={theme.border}
+                  />
+                  <YAxis tick={axisTick} stroke={theme.border} />
+                  <Tooltip contentStyle={tooltipStyle} />
                   <Bar
                     dataKey="value"
-                    fill={CHART_COLORS[0]}
+                    fill={theme.chartColors[0]}
                     isAnimationActive={false}
                   />
                 </BarChart>
@@ -151,12 +171,13 @@ export function EditableContentBlock({
             </ResponsiveContainer>
           </div>
           {block.caption && (
-            <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
+            <p className="text-center text-xs" style={{ color: theme.muted }}>
               {block.caption}
             </p>
           )}
         </div>
       );
+    }
     case "image":
       return (
         <div className="flex flex-col gap-2">
@@ -168,13 +189,16 @@ export function EditableContentBlock({
               className="max-h-56 w-full rounded-md object-contain"
             />
           ) : (
-            <div className="flex h-40 w-full animate-pulse flex-col items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 text-zinc-400 dark:border-zinc-700 dark:text-zinc-600">
+            <div
+              className="flex h-40 w-full animate-pulse flex-col items-center justify-center gap-2 rounded-md border border-dashed"
+              style={{ borderColor: theme.border, color: theme.muted }}
+            >
               <span className="text-2xl">🖼️</span>
               <span className="max-w-[80%] truncate text-xs">{block.alt}</span>
             </div>
           )}
           {block.caption && (
-            <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
+            <p className="text-center text-xs" style={{ color: theme.muted }}>
               {block.caption}
             </p>
           )}

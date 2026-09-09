@@ -21,6 +21,7 @@ beforeEach(() => {
   useDeckStore.setState({
     deck,
     selectedSlideId: deck.slides[0].id,
+    slideTheme: "light",
     history: createHistoryState(),
   });
 });
@@ -166,6 +167,25 @@ describe("deckStore", () => {
       useDeckStore.getState().deck.slides.find((slide) => slide.id === "a")
         ?.title,
     ).toBe("From A Previous Session");
+  });
+
+  describe("setSlideTheme", () => {
+    it("updates slideTheme", () => {
+      useDeckStore.getState().setSlideTheme("dark");
+      expect(useDeckStore.getState().slideTheme).toBe("dark");
+    });
+
+    it("is not part of undo/redo history", () => {
+      useDeckStore.getState().setSlideTheme("dark");
+      expect(useDeckStore.getState().history.undoStack).toHaveLength(0);
+    });
+
+    it("persists to localStorage after a change", () => {
+      useDeckStore.getState().setSlideTheme("dark");
+      const raw = localStorage.getItem("deck-lab:deck");
+      const parsed = JSON.parse(raw as string);
+      expect(parsed.state.slideTheme).toBe("dark");
+    });
   });
 
   describe("undo/redo", () => {

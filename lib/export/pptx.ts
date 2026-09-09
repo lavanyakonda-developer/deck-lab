@@ -1,4 +1,5 @@
 import type PptxGenJS from "pptxgenjs";
+import type { SlideThemeTokens } from "@/lib/themes";
 import type { ContentBlock, Deck, Slide } from "@/lib/schema/slide";
 
 // 16:9 widescreen, in inches (pptxgenjs's native unit).
@@ -8,17 +9,17 @@ const MARGIN = 0.5;
 const BODY_TOP = 1.3;
 const BODY_BOTTOM = 0.3;
 
-const TITLE_COLOR = "18181b"; // zinc-900
-const BODY_COLOR = "3f3f46"; // zinc-700
-const MUTED_COLOR = "71717a"; // zinc-500
-const HEADER_FILL = "f4f4f5"; // zinc-100
-const BORDER_COLOR = "e4e4e7"; // zinc-200
-
 interface Region {
   x: number;
   y: number;
   w: number;
   h: number;
+}
+
+// pptxgenjs wants hex colors without a leading "#"; lib/themes stores
+// them with one (CSS convention), so every color use strips it here.
+function hex(color: string): string {
+  return color.replace(/^#/, "");
 }
 
 function fileNameFor(title: string): string {
@@ -30,7 +31,11 @@ function fileNameFor(title: string): string {
   return `${slug || "deck"}.pptx`;
 }
 
-function addSlideTitle(slide: PptxGenJS.Slide, title: string) {
+function addSlideTitle(
+  slide: PptxGenJS.Slide,
+  title: string,
+  theme: SlideThemeTokens,
+) {
   slide.addText(title, {
     x: MARGIN,
     y: 0.4,
@@ -38,7 +43,7 @@ function addSlideTitle(slide: PptxGenJS.Slide, title: string) {
     h: 0.8,
     fontSize: 28,
     bold: true,
-    color: TITLE_COLOR,
+    color: hex(theme.foreground),
   });
 }
 
@@ -50,6 +55,7 @@ function renderBlocks(
   slide: PptxGenJS.Slide,
   blocks: ContentBlock[],
   region: Region,
+  theme: SlideThemeTokens,
 ) {
   let cursorY = region.y;
   const bottom = region.y + region.h;
@@ -72,7 +78,7 @@ function renderBlocks(
             w: region.w,
             h,
             fontSize: 14,
-            color: BODY_COLOR,
+            color: hex(theme.foreground),
             valign: "top",
           },
         );
@@ -88,7 +94,7 @@ function renderBlocks(
           w: region.w,
           h,
           fontSize: 14,
-          color: BODY_COLOR,
+          color: hex(theme.foreground),
           valign: "top",
         });
         cursorY += h + 0.15;
@@ -104,9 +110,9 @@ function renderBlocks(
               text: cell,
               options: {
                 bold: ri === 0,
-                fill: ri === 0 ? { color: HEADER_FILL } : undefined,
+                fill: ri === 0 ? { color: hex(theme.headerFill) } : undefined,
                 fontSize: 11,
-                color: BODY_COLOR,
+                color: hex(theme.foreground),
               },
             })),
           ),
@@ -115,7 +121,7 @@ function renderBlocks(
             y: cursorY,
             w: region.w,
             h,
-            border: { type: "solid", color: BORDER_COLOR, pt: 0.75 },
+            border: { type: "solid", color: hex(theme.border), pt: 0.75 },
           },
         );
         cursorY += h + 0.2;
@@ -134,7 +140,14 @@ function renderBlocks(
               values: block.data.map((d) => d.value),
             },
           ],
-          { x: region.x, y: cursorY, w: region.w, h, showLegend: false },
+          {
+            x: region.x,
+            y: cursorY,
+            w: region.w,
+            h,
+            showLegend: false,
+            chartColors: theme.chartColors.map(hex),
+          },
         );
         cursorY += h;
         if (block.caption) {
@@ -146,7 +159,7 @@ function renderBlocks(
             fontSize: 10,
             italic: true,
             align: "center",
-            color: MUTED_COLOR,
+            color: hex(theme.muted),
           });
           cursorY += 0.3;
         }
@@ -176,7 +189,7 @@ function renderBlocks(
             italic: true,
             align: "center",
             valign: "middle",
-            color: MUTED_COLOR,
+            color: hex(theme.muted),
           });
         }
         cursorY += h;
@@ -189,7 +202,7 @@ function renderBlocks(
             fontSize: 10,
             italic: true,
             align: "center",
-            color: MUTED_COLOR,
+            color: hex(theme.muted),
           });
           cursorY += 0.3;
         }
@@ -204,6 +217,7 @@ function addColumnHeading(
   slide: PptxGenJS.Slide,
   text: string,
   region: Region,
+  theme: SlideThemeTokens,
 ): Region {
   slide.addText(text.toUpperCase(), {
     x: region.x,
@@ -212,13 +226,14 @@ function addColumnHeading(
     h: 0.35,
     fontSize: 11,
     bold: true,
-    color: MUTED_COLOR,
+    color: hex(theme.muted),
   });
   return { ...region, y: region.y + 0.45, h: region.h - 0.45 };
 }
 
-function buildSlide(pres: PptxGenJS, slide: Slide) {
+function buildSlide(pres: PptxGenJS, slide: Slide, theme: SlideThemeTokens) {
   const pptxSlide = pres.addSlide();
+  pptxSlide.background = { color: hex(theme.background) };
   const fullRegion: Region = {
     x: MARGIN,
     y: BODY_TOP,
@@ -237,7 +252,7 @@ function buildSlide(pres: PptxGenJS, slide: Slide) {
         bold: true,
         align: "center",
         valign: "middle",
-        color: TITLE_COLOR,
+        color: hex(theme.foreground),
       });
       if (slide.subtitle) {
         pptxSlide.addText(slide.subtitle, {
@@ -247,28 +262,28 @@ function buildSlide(pres: PptxGenJS, slide: Slide) {
           h: 0.7,
           fontSize: 18,
           align: "center",
-          color: MUTED_COLOR,
+          color: hex(theme.muted),
         });
       }
       break;
     }
 
     case "content": {
-      addSlideTitle(pptxSlide, slide.title);
-      renderBlocks(pptxSlide, slide.body, fullRegion);
+      addSlideTitle(pptxSlide, slide.title, theme);
+      renderBlocks(pptxSlide, slide.body, fullRegion, theme);
       break;
     }
 
     case "table": {
-      addSlideTitle(pptxSlide, slide.title);
+      addSlideTitle(pptxSlide, slide.title, theme);
       const tableBlock = slide.body.find((block) => block.type === "table");
-      if (tableBlock) renderBlocks(pptxSlide, [tableBlock], fullRegion);
+      if (tableBlock) renderBlocks(pptxSlide, [tableBlock], fullRegion, theme);
       break;
     }
 
     case "two-column":
     case "comparison": {
-      addSlideTitle(pptxSlide, slide.title);
+      addSlideTitle(pptxSlide, slide.title, theme);
       const gap = 0.4;
       const colW = (fullRegion.w - gap) / 2;
       const left = slide.body.filter((block) => (block.column ?? 0) === 0);
@@ -285,14 +300,19 @@ function buildSlide(pres: PptxGenJS, slide: Slide) {
       };
 
       if (leftTitle) {
-        leftRegion = addColumnHeading(pptxSlide, leftTitle, leftRegion);
+        leftRegion = addColumnHeading(pptxSlide, leftTitle, leftRegion, theme);
       }
       if (rightTitle) {
-        rightRegion = addColumnHeading(pptxSlide, rightTitle, rightRegion);
+        rightRegion = addColumnHeading(
+          pptxSlide,
+          rightTitle,
+          rightRegion,
+          theme,
+        );
       }
 
-      renderBlocks(pptxSlide, left, leftRegion);
-      renderBlocks(pptxSlide, right, rightRegion);
+      renderBlocks(pptxSlide, left, leftRegion, theme);
+      renderBlocks(pptxSlide, right, rightRegion, theme);
       break;
     }
   }
@@ -302,7 +322,13 @@ function buildSlide(pres: PptxGenJS, slide: Slide) {
 // pptxgenjs's writeFile() handles the Blob/anchor-click download itself in
 // a browser context. Dynamically imported so this (and its dependency
 // graph) never loads during SSR, where its browser-only APIs don't exist.
-export async function downloadDeckAsPptx(deck: Deck): Promise<void> {
+// `theme` is the deck's currently-selected slide theme (lib/themes) -
+// passing it through here, rather than re-deriving colors, is what makes
+// the selected theme carry into the download.
+export async function downloadDeckAsPptx(
+  deck: Deck,
+  theme: SlideThemeTokens,
+): Promise<void> {
   const PptxGenJS = (await import("pptxgenjs")).default;
   const pres = new PptxGenJS();
   pres.defineLayout({ name: "DECK_LAB_WIDE", width: SLIDE_W, height: SLIDE_H });
@@ -310,7 +336,7 @@ export async function downloadDeckAsPptx(deck: Deck): Promise<void> {
   pres.title = deck.title;
 
   for (const slide of deck.slides) {
-    buildSlide(pres, slide);
+    buildSlide(pres, slide, theme);
   }
 
   await pres.writeFile({ fileName: fileNameFor(deck.title) });

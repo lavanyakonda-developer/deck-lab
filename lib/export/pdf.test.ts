@@ -2,10 +2,21 @@
 // undefined (this environment) instead of trying a browser download,
 // which is what lets this run as a normal Vitest test.
 // @vitest-environment node
-import { existsSync, statSync, unlinkSync } from "node:fs";
+import { existsSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
+import { SLIDE_THEMES } from "@/lib/themes";
 import type { Deck } from "@/lib/schema/slide";
 import { downloadDeckAsPdf } from "./pdf";
+
+// Mirrors jsPDF's own hex->PDF-operator conversion (0-255 channel /255,
+// rounded to 2 decimals) closely enough to find the resulting "r g b rg"
+// fill operator in the raw (uncompressed) PDF bytes - confirmed empirically
+// against a real generated file, not guessed from jsPDF's source.
+function rgOperator(hexColor: string): string {
+  const n = parseInt(hexColor.replace("#", ""), 16);
+  const channel = (shift: number) => (((n >> shift) & 0xff) / 255).toFixed(2);
+  return `${channel(16)} ${channel(8)} ${channel(0)} rg`;
+}
 
 const outputPaths: string[] = [];
 
@@ -127,7 +138,9 @@ describe("downloadDeckAsPdf", () => {
       "every-type.pdf",
     );
 
-    await expect(downloadDeckAsPdf(deck)).resolves.toBeUndefined();
+    await expect(
+      downloadDeckAsPdf(deck, SLIDE_THEMES.light),
+    ).resolves.toBeUndefined();
     expect(existsSync("every-type.pdf")).toBe(true);
     expect(statSync("every-type.pdf").size).toBeGreaterThan(1000);
   });
@@ -138,7 +151,7 @@ describe("downloadDeckAsPdf", () => {
       "q3-roadmap-review.pdf",
     );
 
-    await downloadDeckAsPdf(deck);
+    await downloadDeckAsPdf(deck, SLIDE_THEMES.light);
 
     expect(existsSync("q3-roadmap-review.pdf")).toBe(true);
   });
@@ -146,8 +159,60 @@ describe("downloadDeckAsPdf", () => {
   it("falls back to a generic file name when the title has no usable characters", async () => {
     const deck = deckWith({ title: "!!!", slides: [] }, "deck.pdf");
 
-    await downloadDeckAsPdf(deck);
+    await downloadDeckAsPdf(deck, SLIDE_THEMES.light);
 
     expect(existsSync("deck.pdf")).toBe(true);
+  });
+
+  it("carries the selected theme's background color into the exported file", async () => {
+    const deck = deckWith(
+      {
+        title: "Themed Deck",
+        slides: [
+          {
+            id: "s1",
+            type: "title",
+            title: "Dark Theme Title",
+            body: [],
+            speakerNotes: "",
+          },
+        ],
+      },
+      "themed-deck.pdf",
+    );
+
+    await downloadDeckAsPdf(deck, SLIDE_THEMES.dark);
+
+    const raw = readFileSync("themed-deck.pdf", "latin1");
+    expect(raw).toContain(rgOperator(SLIDE_THEMES.dark.background));
+  });
+
+  it("produces different output bytes for different themes", async () => {
+    const lightDeck = deckWith(
+      {
+        title: "Compare Light",
+        slides: [
+          {
+            id: "s1",
+            type: "title",
+            title: "Same Content",
+            body: [],
+            speakerNotes: "",
+          },
+        ],
+      },
+      "compare-light.pdf",
+    );
+    const darkDeck = deckWith(
+      { ...lightDeck, title: "Compare Dark" },
+      "compare-dark.pdf",
+    );
+
+    await downloadDeckAsPdf(lightDeck, SLIDE_THEMES.light);
+    await downloadDeckAsPdf(darkDeck, SLIDE_THEMES.dark);
+
+    const lightBytes = readFileSync("compare-light.pdf");
+    const darkBytes = readFileSync("compare-dark.pdf");
+    expect(lightBytes.equals(darkBytes)).toBe(false);
   });
 });

@@ -2,11 +2,13 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import type { SlideThemeTokens } from "@/lib/themes";
 import type { Slide } from "@/lib/schema/slide";
 
 interface SlideThumbnailProps {
   slide: Slide;
   index: number;
+  theme: SlideThemeTokens;
   isSelected: boolean;
   onSelect: () => void;
   onDelete: () => void;
@@ -15,6 +17,7 @@ interface SlideThumbnailProps {
 export function SlideThumbnail({
   slide,
   index,
+  theme,
   isSelected,
   onSelect,
   onDelete,
@@ -31,6 +34,9 @@ export function SlideThumbnail({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
+    background: theme.background,
+    borderColor: isSelected ? theme.accent : theme.border,
+    borderWidth: isSelected ? 2 : 1,
   };
 
   return (
@@ -51,10 +57,6 @@ export function SlideThumbnail({
       aria-current={isSelected}
       className={`group relative flex h-16 w-28 shrink-0 cursor-grab flex-col justify-between rounded-md border px-2 py-1.5 text-left transition-colors active:cursor-grabbing ${
         isDragging ? "opacity-50" : ""
-      } ${
-        isSelected
-          ? "border-zinc-900 bg-zinc-50 dark:border-zinc-50 dark:bg-zinc-900"
-          : "border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700"
       }`}
     >
       <button
@@ -69,8 +71,10 @@ export function SlideThumbnail({
       >
         ×
       </button>
-      <span className="text-[10px] font-medium text-zinc-400">{index + 1}</span>
-      <span className="truncate text-xs text-zinc-700 dark:text-zinc-300">
+      <span className="text-[10px] font-medium" style={{ color: theme.muted }}>
+        {index + 1}
+      </span>
+      <span className="truncate text-xs" style={{ color: theme.foreground }}>
         {slide.title || "Untitled"}
       </span>
     </div>

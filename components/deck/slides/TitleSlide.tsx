@@ -1,10 +1,17 @@
 "use client";
 
+import type { SlideThemeTokens } from "@/lib/themes";
 import type { Slide } from "@/lib/schema/slide";
 import { useDeckStore } from "@/store/deckStore";
 import { InlineEditable } from "../InlineEditable";
 
-export function TitleSlide({ slide }: { slide: Slide }) {
+export function TitleSlide({
+  slide,
+  theme,
+}: {
+  slide: Slide;
+  theme: SlideThemeTokens;
+}) {
   const updateSlide = useDeckStore((state) => state.updateSlide);
 
   return (
@@ -14,7 +21,8 @@ export function TitleSlide({ slide }: { slide: Slide }) {
         onCommit={(next) => updateSlide(slide.id, { title: next })}
         placeholder="Slide title"
         ariaLabel="Slide title"
-        className="text-4xl font-bold text-zinc-900 dark:text-zinc-50"
+        className="text-4xl font-bold"
+        style={{ color: theme.foreground }}
       />
       <InlineEditable
         value={slide.subtitle ?? ""}
@@ -23,7 +31,8 @@ export function TitleSlide({ slide }: { slide: Slide }) {
         }
         placeholder="Subtitle (optional)"
         ariaLabel="Slide subtitle"
-        className="max-w-2xl text-lg text-zinc-500 dark:text-zinc-400"
+        className="max-w-2xl text-lg"
+        style={{ color: theme.muted }}
       />
     </div>
   );

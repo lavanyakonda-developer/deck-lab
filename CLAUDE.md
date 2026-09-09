@@ -508,6 +508,60 @@ selectedSlideId}` snapshot onto `history` as part of its own `set()`
   editable field (`InlineEditable`'s contentEditable divs, inputs,
   textareas) so the browser's native per-field undo isn't hijacked while
   typing.
+- **Slide theme** (Phase 9, N1): a visual style picker for the DECK
+  CONTENT specifically - not the app's own chrome (header/chat panel),
+  which stays unthemed. This corrected an initial wrong turn: the first
+  implementation added an app-wide light/dark toggle for the editor UI
+  itself (header, chat panel, via a `.dark`-class `@custom-variant` and
+  an anti-flash inline script), which the user then clarified wasn't
+  what N1 ("slide themes/templates") meant at all - that work was fully
+  reverted (not left dead in the tree) before building the correct
+  feature described here.
+  - **Scoped down from `phases.txt`'s "2-3 presets with color
+    palette/font pairing/spacing"** to exactly 2 themes - light and dark,
+    a straight color inversion - at the user's explicit request, same as
+    the (reverted) app-theme attempt's scope.
+  - `lib/themes/index.ts` is the single source of truth: a
+    `SlideThemeTokens` record (background/foreground/muted/border/
+    headerFill/accent/chartColors, all hex strings) per theme name,
+    imported directly by both the React rendering path AND both export
+    paths - not derived independently in each place, which is what makes
+    "the selected theme persists into a download" (the user's other
+    explicit requirement) true by construction rather than by
+    re-implementing color logic twice and hoping they stay in sync.
+  - `store/deckStore.ts` holds `slideTheme: SlideThemeName` (default
+    `"light"`) + `setSlideTheme` - persisted (in the `partialize` list)
+    but NOT part of undo/redo history, same reasoning as
+    `selectedSlideId`: a presentation preference, not deck content.
+  - **Render layer only, no schema change** (per `phases.txt`): every
+    slide-rendering component (`SlideCanvas.tsx`, `SlideThumbnail.tsx`,
+    `SlideRenderer.tsx` and every `slides/*.tsx` component,
+    `EditableContentBlock.tsx`) now takes a required `theme:
+SlideThemeTokens` prop and applies colors via inline `style`, not
+    hardcoded Tailwind zinc/`dark:` classes - `InlineEditable.tsx` grew a
+    `style` passthrough prop for this. Recharts (bullet/paragraph/table/
+    chart/image blocks) gets `theme.chartColors` for series fills and
+    themed axis/tooltip colors so a chart doesn't stay hardcoded-light
+    against a dark slide background.
+  - **Both exporters take a `theme` parameter now**
+    (`downloadDeckAsPptx(deck, theme)`, `downloadDeckAsPdf(deck, theme)`)
+    and `ExportActions.tsx` reads the deck's current `slideTheme` and
+    passes it through - this single change point is the entire
+    "download persists the theme" requirement.
+    `lib/export/pptx.ts` sets an explicit `pptxSlide.background`
+    (pptxgenjs slides default to white - without this a dark theme's
+    export would still be a white deck) and passes `chartColors` to
+    `addChart`. `lib/export/pdf.ts` paints an explicit background
+    rectangle per page for the same reason (jsPDF pages also default to
+    white) and threads `theme` through every draw call, including the
+    vector chart functions.
+    **Verified structurally, not just "doesn't throw"**: a dedicated
+    pptx test unzips the generated file and asserts the dark theme's
+    background/foreground hex literally appears in `ppt/slides/slide1.xml`;
+    a dedicated pdf test computes jsPDF's expected `r g b rg` fill
+    operator from the theme's hex (confirmed empirically against a real
+    generated file first, not guessed) and asserts it's present in the
+    raw PDF bytes, plus a light-vs-dark byte-diff sanity check.
 - **Deployment**: Vercel.
 
 ### Current Slide Schema Shape (`lib/schema/slide.ts`)
@@ -547,7 +601,7 @@ the status tracker.
 | 6     | Rich Content: Images, Charts, Tables                              | ✅ Done — uncommitted (user commits themselves); verified end-to-end against the live OpenAI API                              |
 | 7     | Export                                                            | ✅ Done — committed by the user; direct-download PDF + PPTX, no print dialog                                                  |
 | 8     | Unified Undo/Redo (Nice to Have)                                  | ✅ Done — uncommitted; unit tested, not yet manually verified live                                                            |
-| 9     | Themes / Templates (Nice to Have)                                 | Not started                                                                                                                   |
+| 9     | Themes / Templates (Nice to Have)                                 | ✅ Done — uncommitted; light/dark slide-content theme, verified in exports, not yet manually verified live                    |
 | 10    | Context Window Management (Nice to Have)                          | Not started                                                                                                                   |
 | 11    | Multiple Presentation Projects (Nice to Have)                     | Not started                                                                                                                   |
 | 12    | Deployment, README, and Final Polish                              | Not started                                                                                                                   |

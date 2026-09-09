@@ -2,8 +2,10 @@
 // environment) makes it write a real file via fs instead of trying a
 // browser download, which is what lets this run as a normal Vitest test.
 // @vitest-environment node
-import { existsSync, statSync, unlinkSync } from "node:fs";
+import { existsSync, readFileSync, statSync, unlinkSync } from "node:fs";
+import JSZip from "jszip";
 import { afterEach, describe, expect, it } from "vitest";
+import { SLIDE_THEMES } from "@/lib/themes";
 import type { Deck } from "@/lib/schema/slide";
 import { downloadDeckAsPptx } from "./pptx";
 
@@ -103,7 +105,9 @@ describe("downloadDeckAsPptx", () => {
       "every-type.pptx",
     );
 
-    await expect(downloadDeckAsPptx(deck)).resolves.toBeUndefined();
+    await expect(
+      downloadDeckAsPptx(deck, SLIDE_THEMES.light),
+    ).resolves.toBeUndefined();
     expect(existsSync("every-type.pptx")).toBe(true);
     expect(statSync("every-type.pptx").size).toBeGreaterThan(1000);
   });
@@ -114,7 +118,7 @@ describe("downloadDeckAsPptx", () => {
       "q3-roadmap-review.pptx",
     );
 
-    await downloadDeckAsPptx(deck);
+    await downloadDeckAsPptx(deck, SLIDE_THEMES.light);
 
     expect(existsSync("q3-roadmap-review.pptx")).toBe(true);
   });
@@ -122,8 +126,39 @@ describe("downloadDeckAsPptx", () => {
   it("falls back to a generic file name when the title has no usable characters", async () => {
     const deck = deckWith({ title: "!!!", slides: [] }, "deck.pptx");
 
-    await downloadDeckAsPptx(deck);
+    await downloadDeckAsPptx(deck, SLIDE_THEMES.light);
 
     expect(existsSync("deck.pptx")).toBe(true);
+  });
+
+  it("carries the selected theme's colors into the exported file", async () => {
+    const deck = deckWith(
+      {
+        title: "Themed Deck",
+        slides: [
+          {
+            id: "s1",
+            type: "title",
+            title: "Dark Theme Title",
+            body: [],
+            speakerNotes: "",
+          },
+        ],
+      },
+      "themed-deck.pptx",
+    );
+
+    await downloadDeckAsPptx(deck, SLIDE_THEMES.dark);
+
+    const zip = await JSZip.loadAsync(readFileSync("themed-deck.pptx"));
+    const slideXml = await zip.file("ppt/slides/slide1.xml")!.async("text");
+
+    // pptxgenjs writes hex colors without a leading "#" and uppercased.
+    expect(slideXml).toContain(
+      SLIDE_THEMES.dark.background.replace("#", "").toUpperCase(),
+    );
+    expect(slideXml).toContain(
+      SLIDE_THEMES.dark.foreground.replace("#", "").toUpperCase(),
+    );
   });
 });

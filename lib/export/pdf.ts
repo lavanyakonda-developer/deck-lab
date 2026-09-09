@@ -1,5 +1,6 @@
 import type jsPDF from "jspdf";
 import type { autoTable as AutoTable } from "jspdf-autotable";
+import type { SlideThemeTokens } from "@/lib/themes";
 import type { ContentBlock, Deck, Slide } from "@/lib/schema/slide";
 
 // 16:9 widescreen, in inches - matches the proportions of the on-screen
@@ -10,24 +11,6 @@ const SLIDE_H = 7.5;
 const MARGIN = 0.5;
 const BODY_TOP = 1.3;
 const BODY_BOTTOM = 0.3;
-
-const TITLE_COLOR = "#18181b"; // zinc-900
-const BODY_COLOR = "#3f3f46"; // zinc-700
-const MUTED_COLOR = "#71717a"; // zinc-500
-const HEADER_FILL = "#f4f4f5"; // zinc-100
-const BORDER_COLOR = "#e4e4e7"; // zinc-200
-
-// Mirrors EditableContentBlock.tsx's CHART_COLORS palette so a chart looks
-// the same (as far as a static PDF vector redraw can match a live Recharts
-// render) across the live app and this export.
-const CHART_COLORS = [
-  "#2563eb",
-  "#16a34a",
-  "#d97706",
-  "#dc2626",
-  "#7c3aed",
-  "#0891b2",
-];
 
 interface Region {
   x: number;
@@ -49,10 +32,17 @@ function fileNameFor(title: string): string {
   return `${slug || "deck"}.pdf`;
 }
 
-function addSlideTitle(doc: jsPDF, title: string) {
+// Pages default to white - for a dark theme the background must be
+// painted explicitly, once per page, before anything else draws on it.
+function paintBackground(doc: jsPDF, theme: SlideThemeTokens) {
+  doc.setFillColor(theme.background);
+  doc.rect(0, 0, SLIDE_W, SLIDE_H, "F");
+}
+
+function addSlideTitle(doc: jsPDF, title: string, theme: SlideThemeTokens) {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(20);
-  doc.setTextColor(TITLE_COLOR);
+  doc.setTextColor(theme.foreground);
   doc.text(title, MARGIN, 0.85);
 }
 
@@ -92,16 +82,17 @@ function drawWrapped(
 // rendered ~576pt tall and bled across the page. doc.text()'s font sizes
 // are always real points regardless of document unit, so it doesn't have
 // that bug - context2d is used here only for vector shapes (arc/rect/line).
-function setLabelFont(doc: jsPDF) {
+function setLabelFont(doc: jsPDF, theme: SlideThemeTokens) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.setTextColor(MUTED_COLOR);
+  doc.setTextColor(theme.muted);
 }
 
 function drawBarChart(
   doc: jsPDF,
   data: { label: string; value: number }[],
   region: Region,
+  theme: SlideThemeTokens,
 ) {
   const ctx = doc.context2d;
   const plotH = region.h - 0.3;
@@ -109,7 +100,7 @@ function drawBarChart(
   const slotW = region.w / data.length;
   const barW = slotW * 0.6;
 
-  ctx.strokeStyle = BORDER_COLOR;
+  ctx.strokeStyle = theme.border;
   ctx.lineWidth = 0.01;
   ctx.beginPath();
   ctx.moveTo(region.x, region.y + plotH);
@@ -119,10 +110,10 @@ function drawBarChart(
   data.forEach((point, i) => {
     const barH = (point.value / max) * (plotH - 0.1);
     const x = region.x + i * slotW + (slotW - barW) / 2;
-    ctx.fillStyle = CHART_COLORS[i % CHART_COLORS.length];
+    ctx.fillStyle = theme.chartColors[i % theme.chartColors.length];
     ctx.fillRect(x, region.y + plotH - barH, barW, barH);
 
-    setLabelFont(doc);
+    setLabelFont(doc, theme);
     doc.text(point.label, x + barW / 2, region.y + plotH + 0.18, {
       align: "center",
     });
@@ -133,6 +124,7 @@ function drawLineChart(
   doc: jsPDF,
   data: { label: string; value: number }[],
   region: Region,
+  theme: SlideThemeTokens,
 ) {
   const ctx = doc.context2d;
   const plotH = region.h - 0.3;
@@ -146,7 +138,7 @@ function drawLineChart(
     label: point.label,
   }));
 
-  ctx.strokeStyle = CHART_COLORS[0];
+  ctx.strokeStyle = theme.chartColors[0];
   ctx.lineWidth = 0.02;
   ctx.beginPath();
   points.forEach((point, i) => {
@@ -156,12 +148,12 @@ function drawLineChart(
   ctx.stroke();
 
   points.forEach((point) => {
-    ctx.fillStyle = CHART_COLORS[0];
+    ctx.fillStyle = theme.chartColors[0];
     ctx.beginPath();
     ctx.arc(point.x, point.y, 0.035, 0, Math.PI * 2, false);
     ctx.fill();
 
-    setLabelFont(doc);
+    setLabelFont(doc, theme);
     doc.text(point.label, point.x, region.y + plotH + 0.18, {
       align: "center",
     });
@@ -172,6 +164,7 @@ function drawPieChart(
   doc: jsPDF,
   data: { label: string; value: number }[],
   region: Region,
+  theme: SlideThemeTokens,
 ) {
   const ctx = doc.context2d;
   const total = data.reduce((sum, point) => sum + point.value, 0) || 1;
@@ -184,7 +177,7 @@ function drawPieChart(
   let angle = -Math.PI / 2;
   data.forEach((point, i) => {
     const sweep = (point.value / total) * Math.PI * 2;
-    ctx.fillStyle = CHART_COLORS[i % CHART_COLORS.length];
+    ctx.fillStyle = theme.chartColors[i % theme.chartColors.length];
     ctx.beginPath();
     ctx.moveTo(cx, cy);
     ctx.arc(cx, cy, radius, angle, angle + sweep, false);
@@ -200,10 +193,10 @@ function drawPieChart(
     const row = Math.floor(i / 3);
     const x = region.x + col * colW;
     const y = legendTop + row * 0.2;
-    ctx.fillStyle = CHART_COLORS[i % CHART_COLORS.length];
+    ctx.fillStyle = theme.chartColors[i % theme.chartColors.length];
     ctx.fillRect(x, y - 0.08, 0.1, 0.1);
 
-    setLabelFont(doc);
+    setLabelFont(doc, theme);
     doc.text(`${point.label}: ${point.value}`, x + 0.16, y);
   });
 }
@@ -215,6 +208,7 @@ function renderBlocks(
   autoTable: typeof AutoTable,
   blocks: ContentBlock[],
   region: Region,
+  theme: SlideThemeTokens,
 ) {
   let cursorY = region.y;
   const bottom = region.y + region.h;
@@ -234,7 +228,7 @@ function renderBlocks(
             region,
             cursorY,
             itemRemaining,
-            { fontSize: 12, color: BODY_COLOR },
+            { fontSize: 12, color: theme.foreground },
           );
         }
         cursorY += 0.1;
@@ -245,7 +239,7 @@ function renderBlocks(
         cursorY =
           drawWrapped(doc, block.text, region, cursorY, remaining, {
             fontSize: 12,
-            color: BODY_COLOR,
+            color: theme.foreground,
           }) + 0.1;
         break;
       }
@@ -257,14 +251,19 @@ function renderBlocks(
           startY: cursorY,
           margin: { left: region.x, right: SLIDE_W - region.x - region.w },
           tableWidth: region.w,
-          styles: { fontSize: 9, textColor: BODY_COLOR, cellPadding: 0.04 },
+          styles: {
+            fontSize: 9,
+            textColor: theme.foreground,
+            cellPadding: 0.04,
+            fillColor: theme.background,
+          },
           headStyles: {
-            fillColor: HEADER_FILL,
-            textColor: TITLE_COLOR,
+            fillColor: theme.headerFill,
+            textColor: theme.foreground,
             fontStyle: "bold",
           },
           theme: "grid",
-          tableLineColor: BORDER_COLOR,
+          tableLineColor: theme.border,
           tableLineWidth: 0.005,
         });
         cursorY =
@@ -281,15 +280,15 @@ function renderBlocks(
           h: Math.min(3, remaining - captionH),
         };
         if (block.chartType === "bar")
-          drawBarChart(doc, block.data, chartRegion);
+          drawBarChart(doc, block.data, chartRegion, theme);
         else if (block.chartType === "line")
-          drawLineChart(doc, block.data, chartRegion);
-        else drawPieChart(doc, block.data, chartRegion);
+          drawLineChart(doc, block.data, chartRegion, theme);
+        else drawPieChart(doc, block.data, chartRegion, theme);
         cursorY += chartRegion.h;
         if (block.caption) {
           cursorY = drawWrapped(doc, block.caption, region, cursorY, captionH, {
             fontSize: 9,
-            color: MUTED_COLOR,
+            color: theme.muted,
           });
         }
         cursorY += 0.15;
@@ -314,7 +313,7 @@ function renderBlocks(
         } else {
           doc.setFont("helvetica", "italic");
           doc.setFontSize(11);
-          doc.setTextColor(MUTED_COLOR);
+          doc.setTextColor(theme.muted);
           doc.text(
             `[Image: ${block.alt}]`,
             region.x + region.w / 2,
@@ -329,7 +328,7 @@ function renderBlocks(
         if (block.caption) {
           cursorY = drawWrapped(doc, block.caption, region, cursorY, captionH, {
             fontSize: 9,
-            color: MUTED_COLOR,
+            color: theme.muted,
           });
         }
         cursorY += 0.15;
@@ -339,15 +338,26 @@ function renderBlocks(
   }
 }
 
-function addColumnHeading(doc: jsPDF, text: string, region: Region): Region {
+function addColumnHeading(
+  doc: jsPDF,
+  text: string,
+  region: Region,
+  theme: SlideThemeTokens,
+): Region {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
-  doc.setTextColor(MUTED_COLOR);
+  doc.setTextColor(theme.muted);
   doc.text(text.toUpperCase(), region.x, region.y + 0.15);
   return { ...region, y: region.y + 0.35, h: region.h - 0.35 };
 }
 
-function buildSlide(doc: jsPDF, autoTable: typeof AutoTable, slide: Slide) {
+function buildSlide(
+  doc: jsPDF,
+  autoTable: typeof AutoTable,
+  slide: Slide,
+  theme: SlideThemeTokens,
+) {
+  paintBackground(doc, theme);
   const fullRegion: Region = {
     x: MARGIN,
     y: BODY_TOP,
@@ -359,14 +369,14 @@ function buildSlide(doc: jsPDF, autoTable: typeof AutoTable, slide: Slide) {
     case "title": {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(32);
-      doc.setTextColor(TITLE_COLOR);
+      doc.setTextColor(theme.foreground);
       doc.text(slide.title, SLIDE_W / 2, SLIDE_H / 2 - 0.15, {
         align: "center",
       });
       if (slide.subtitle) {
         doc.setFont("helvetica", "normal");
         doc.setFontSize(14);
-        doc.setTextColor(MUTED_COLOR);
+        doc.setTextColor(theme.muted);
         doc.text(slide.subtitle, SLIDE_W / 2, SLIDE_H / 2 + 0.45, {
           align: "center",
         });
@@ -375,21 +385,22 @@ function buildSlide(doc: jsPDF, autoTable: typeof AutoTable, slide: Slide) {
     }
 
     case "content": {
-      addSlideTitle(doc, slide.title);
-      renderBlocks(doc, autoTable, slide.body, fullRegion);
+      addSlideTitle(doc, slide.title, theme);
+      renderBlocks(doc, autoTable, slide.body, fullRegion, theme);
       break;
     }
 
     case "table": {
-      addSlideTitle(doc, slide.title);
+      addSlideTitle(doc, slide.title, theme);
       const tableBlock = slide.body.find((block) => block.type === "table");
-      if (tableBlock) renderBlocks(doc, autoTable, [tableBlock], fullRegion);
+      if (tableBlock)
+        renderBlocks(doc, autoTable, [tableBlock], fullRegion, theme);
       break;
     }
 
     case "two-column":
     case "comparison": {
-      addSlideTitle(doc, slide.title);
+      addSlideTitle(doc, slide.title, theme);
       const gap = 0.4;
       const colW = (fullRegion.w - gap) / 2;
       const left = slide.body.filter((block) => (block.column ?? 0) === 0);
@@ -405,12 +416,13 @@ function buildSlide(doc: jsPDF, autoTable: typeof AutoTable, slide: Slide) {
         w: colW,
       };
 
-      if (leftTitle) leftRegion = addColumnHeading(doc, leftTitle, leftRegion);
+      if (leftTitle)
+        leftRegion = addColumnHeading(doc, leftTitle, leftRegion, theme);
       if (rightTitle)
-        rightRegion = addColumnHeading(doc, rightTitle, rightRegion);
+        rightRegion = addColumnHeading(doc, rightTitle, rightRegion, theme);
 
-      renderBlocks(doc, autoTable, left, leftRegion);
-      renderBlocks(doc, autoTable, right, rightRegion);
+      renderBlocks(doc, autoTable, left, leftRegion, theme);
+      renderBlocks(doc, autoTable, right, rightRegion, theme);
       break;
     }
   }
@@ -422,8 +434,14 @@ function buildSlide(doc: jsPDF, autoTable: typeof AutoTable, slide: Slide) {
 // vector shapes with jsPDF's built-in context2d (a canvas-like API that
 // emits real PDF drawing operators, not an actual <canvas> - so this has
 // no DOM dependency and works the same in a test/Node context). Dynamically
-// imported by its caller so this never loads during SSR.
-export async function downloadDeckAsPdf(deck: Deck): Promise<void> {
+// imported by its caller so this never loads during SSR. `theme` is the
+// deck's currently-selected slide theme (lib/themes) - passing it through
+// here, rather than re-deriving colors, is what makes the selected theme
+// carry into the download.
+export async function downloadDeckAsPdf(
+  deck: Deck,
+  theme: SlideThemeTokens,
+): Promise<void> {
   const [{ default: JsPDF }, { autoTable }] = await Promise.all([
     import("jspdf"),
     import("jspdf-autotable"),
@@ -436,7 +454,7 @@ export async function downloadDeckAsPdf(deck: Deck): Promise<void> {
 
   deck.slides.forEach((slide, i) => {
     if (i > 0) doc.addPage([SLIDE_W, SLIDE_H], "landscape");
-    buildSlide(doc, autoTable, slide);
+    buildSlide(doc, autoTable, slide, theme);
   });
 
   doc.save(fileNameFor(deck.title));

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ExportActions } from "@/components/ExportActions";
+import { ThemePicker } from "@/components/toolbar/ThemePicker";
 import { UndoRedo } from "@/components/toolbar/UndoRedo";
 import "./globals.css";
 
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             Deck Lab
           </span>
           <div className="flex items-center gap-6">
+            <ThemePicker />
             <UndoRedo />
             <ExportActions />
           </div>
