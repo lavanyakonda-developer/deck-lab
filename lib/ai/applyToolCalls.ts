@@ -13,12 +13,15 @@ interface DeckActions {
   deleteSlide: (id: string) => void;
   reorderSlides: (orderedIds: string[]) => void;
   changeLayout: (id: string, changes: ChangeLayoutChanges) => void;
+  selectSlide: (id: string | null) => void;
 }
 
 // Applies one already-validated tool call directly through the deck
 // store's existing actions - the same ones manual editing uses, so a
 // tool call is a targeted patch by construction, never a full rebuild.
 export function applyToolCall(actions: DeckActions, call: ValidatedToolCall) {
+  console.log("[applyToolCall]", call.tool, call.args);
+
   switch (call.tool) {
     case "generate_deck":
       // The server intercepts generate_deck and returns it as
@@ -55,6 +58,9 @@ export function applyToolCall(actions: DeckActions, call: ValidatedToolCall) {
       if (call.args.speakerNotes !== null)
         patch.speakerNotes = call.args.speakerNotes;
       actions.updateSlide(call.args.id, patch);
+      // Select the edited slide so the user sees the change live, even
+      // if they were looking at a different slide when it landed.
+      actions.selectSlide(call.args.id);
       return;
     }
 
@@ -71,6 +77,7 @@ export function applyToolCall(actions: DeckActions, call: ValidatedToolCall) {
         type: call.args.type ?? undefined,
         layout: normalizeLayout(call.args.layout),
       });
+      actions.selectSlide(call.args.id);
       return;
   }
 }

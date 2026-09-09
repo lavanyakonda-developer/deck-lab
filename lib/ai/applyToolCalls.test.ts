@@ -9,6 +9,7 @@ function makeActions() {
     deleteSlide: vi.fn(),
     reorderSlides: vi.fn(),
     changeLayout: vi.fn(),
+    selectSlide: vi.fn(),
   };
 }
 
@@ -83,6 +84,7 @@ describe("applyToolCall", () => {
     expect(actions.updateSlide).toHaveBeenCalledWith("slide-3", {
       title: "Shorter Title",
     });
+    expect(actions.selectSlide).toHaveBeenCalledWith("slide-3");
   });
 
   it("update_slide passes a normalized body when provided", () => {
@@ -106,22 +108,24 @@ describe("applyToolCall", () => {
     });
   });
 
-  it("delete_slide calls deleteSlide with the given id", () => {
+  it("delete_slide calls deleteSlide with the given id and does not reselect", () => {
     const actions = makeActions();
     applyToolCall(actions, { tool: "delete_slide", args: { id: "slide-2" } });
     expect(actions.deleteSlide).toHaveBeenCalledWith("slide-2");
+    expect(actions.selectSlide).not.toHaveBeenCalled();
   });
 
-  it("reorder_slides calls reorderSlides with the given order", () => {
+  it("reorder_slides calls reorderSlides with the given order and does not select", () => {
     const actions = makeActions();
     applyToolCall(actions, {
       tool: "reorder_slides",
       args: { orderedIds: ["c", "a", "b"] },
     });
     expect(actions.reorderSlides).toHaveBeenCalledWith(["c", "a", "b"]);
+    expect(actions.selectSlide).not.toHaveBeenCalled();
   });
 
-  it("change_layout maps null type/layout to undefined", () => {
+  it("change_layout maps null type/layout to undefined and selects the slide", () => {
     const actions = makeActions();
     applyToolCall(actions, {
       tool: "change_layout",
@@ -131,6 +135,26 @@ describe("applyToolCall", () => {
       type: "table",
       layout: undefined,
     });
+    expect(actions.selectSlide).toHaveBeenCalledWith("slide-2");
+  });
+
+  it("add_slide does not call selectSlide (the store's own addSlide already auto-selects)", () => {
+    const actions = makeActions();
+    applyToolCall(actions, {
+      tool: "add_slide",
+      args: {
+        slide: {
+          type: "content",
+          title: "X",
+          subtitle: null,
+          body: [],
+          layout: null,
+          speakerNotes: "",
+        },
+        index: null,
+      },
+    });
+    expect(actions.selectSlide).not.toHaveBeenCalled();
   });
 });
 

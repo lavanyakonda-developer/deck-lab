@@ -160,6 +160,7 @@ export async function POST(request: Request) {
             for (const rawArgs of state.extractor.feed(argsDelta)) {
               const validated = validateToolCall(state.name, rawArgs);
               if (!validated) continue;
+              console.log("[tool call]", validated.tool, validated.args);
               if (validated.tool === "generate_deck") {
                 generateDeckPrompt = validated.args.prompt;
               } else {

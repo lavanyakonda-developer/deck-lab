@@ -130,6 +130,12 @@ thumbnail rail): `ui-reference.png` (repo root).
   nullable and `null` means "leave unchanged" (not "clear it") — the
   system prompt spells this convention out explicitly, and
   `applyToolCalls.ts` only includes non-null fields in the store patch.
+  `update_slide`/`change_layout` also call `selectSlide(id)` after
+  applying, so the canvas follows a chat-driven edit onto whatever slide
+  it targeted even if the user was looking at a different one — `add_slide`
+  doesn't need this (the store's own `addSlide` already auto-selects the
+  new slide), and `delete_slide`/`reorder_slides` have no single target to
+  select.
   `lib/ai/deckContext.ts` compacts the current deck (every slide's real
   id + type + title + a short content summary, no speaker notes) into the
   system prompt so the model can reference exact slide ids without the
