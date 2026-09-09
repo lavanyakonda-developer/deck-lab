@@ -10,6 +10,7 @@ interface SlideThumbnailProps {
   index: number;
   theme: SlideThemeTokens;
   isSelected: boolean;
+  elementId: string;
   onSelect: () => void;
   onDelete: () => void;
 }
@@ -19,6 +20,7 @@ export function SlideThumbnail({
   index,
   theme,
   isSelected,
+  elementId,
   onSelect,
   onDelete,
 }: SlideThumbnailProps) {
@@ -41,6 +43,7 @@ export function SlideThumbnail({
 
   return (
     <div
+      id={elementId}
       ref={setNodeRef}
       style={style}
       {...attributes}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -18,6 +19,19 @@ import { getSlideTheme } from "@/lib/themes";
 import { useDeckStore } from "@/store/deckStore";
 import { SlideThumbnail } from "./SlideThumbnail";
 
+function thumbnailElementId(slideId: string): string {
+  return `slide-thumbnail-${slideId}`;
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.isContentEditable ||
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA"
+  );
+}
+
 export function ThumbnailRail() {
   const slides = useDeckStore((state) => state.deck.slides);
   const selectedSlideId = useDeckStore((state) => state.selectedSlideId);
@@ -33,6 +47,48 @@ export function ThumbnailRail() {
   );
 
   const ids = slides.map((slide) => slide.id);
+
+  // Keep the selected thumbnail in view when it changes (e.g. via the
+  // ArrowLeft/ArrowRight navigation below) - without this, stepping past
+  // the visible edge of the rail would move the selection with nothing on
+  // screen to show for it.
+  useEffect(() => {
+    if (!selectedSlideId) return;
+    document
+      .getElementById(thumbnailElementId(selectedSlideId))
+      ?.scrollIntoView({
+        behavior: "smooth",
+        inline: "nearest",
+        block: "nearest",
+      });
+  }, [selectedSlideId]);
+
+  // ArrowLeft/ArrowRight step the selection to the previous/next slide,
+  // skipped while typing in an editable field (a slide's title, the chat
+  // textarea, etc.) so this doesn't hijack normal text cursor movement.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      if (isEditableTarget(e.target)) return;
+
+      const currentIds = useDeckStore.getState().deck.slides.map((s) => s.id);
+      const currentSelectedId = useDeckStore.getState().selectedSlideId;
+      const index = currentIds.indexOf(currentSelectedId ?? "");
+
+      if (e.key === "ArrowLeft") {
+        if (index <= 0) return;
+        e.preventDefault();
+        selectSlide(currentIds[index - 1]);
+      } else {
+        if (index === -1 || index >= currentIds.length - 1) return;
+        e.preventDefault();
+        selectSlide(currentIds[index + 1]);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectSlide]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -60,6 +116,7 @@ export function ThumbnailRail() {
             {slides.map((slide, index) => (
               <SlideThumbnail
                 key={slide.id}
+                elementId={thumbnailElementId(slide.id)}
                 slide={slide}
                 index={index}
                 theme={theme}
