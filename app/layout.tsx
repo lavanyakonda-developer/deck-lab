@@ -23,10 +23,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <span className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             Deck Lab
           </span>
-          <div className="flex items-center gap-6">
-            <ThemePicker />
+          <div className="flex items-center gap-4">
             <UndoRedo />
             <ExportActions />
+            <ThemePicker />
           </div>
         </header>
         <div className="flex min-h-0 flex-1 flex-col">{children}</div>

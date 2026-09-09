@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { Redo2, Undo2 } from "lucide-react";
 import { useDeckStore } from "@/store/deckStore";
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -42,26 +43,26 @@ export function UndoRedo() {
   }, [undo, redo]);
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-1">
       <button
         type="button"
         onClick={undo}
         disabled={!canUndo}
-        aria-label="Undo (Cmd/Ctrl+Z)"
+        aria-label="Undo"
         title="Undo (Cmd/Ctrl+Z)"
-        className="text-sm font-medium text-zinc-500 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-100"
+        className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
       >
-        Undo
+        <Undo2 size={18} strokeWidth={1.75} />
       </button>
       <button
         type="button"
         onClick={redo}
         disabled={!canRedo}
-        aria-label="Redo (Cmd/Ctrl+Shift+Z)"
+        aria-label="Redo"
         title="Redo (Cmd/Ctrl+Shift+Z)"
-        className="text-sm font-medium text-zinc-500 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-100"
+        className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
       >
-        Redo
+        <Redo2 size={18} strokeWidth={1.75} />
       </button>
     </div>
   );
