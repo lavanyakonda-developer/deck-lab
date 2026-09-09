@@ -143,20 +143,71 @@ thumbnail rail): `ui-reference.png` (repo root).
   OpenAI API**: "make slide 2 more concise" produced exactly one
   `update_slide` call on the correct id; "add a pricing slide after X"
   produced a correctly-indexed `add_slide` call.
-  - **The reverse direction of "selection follows edits" also holds**:
+  - **The reverse direction ("selection informs unqualified edits") also
+    holds, but confirms before acting rather than applying directly**:
     `ChatPanel.tsx` sends `selectedSlideId` (the slide currently shown in
     the canvas) alongside `message`/`deck`/`history`; `serializeDeckContext`
     marks that slide's line with `(currently selected/viewed by the
-user)`, and the system prompt explicitly tells the model to resolve an
-    unqualified request ("change the title to X", "make this more
-    concise" - no slide named) to that marked slide instead of asking
-    which one. Without this, the model has no way to know what "this
-    slide" or an implicit reference even means and (correctly, given no
-    context) asks a clarifying question every time - verified live:
-    "change title to JS Components" with slide 3 selected resolved
-    straight to an `update_slide` call on that exact id, no clarifying
-    question. `selectedSlideId` is optional server-side (defaults to no
-    slide marked) so older/partial requests don't fail.
+user)`. When a request doesn't name a specific slide ("change the title
+    to X", "make this more concise"), the system prompt tells the model to
+    ask for confirmation in its text reply - naming the slide by number
+    and title and restating the change (e.g. `Update slide 3 ("Pricing")
+    - set the title to "1234"?`) - and only make the tool call once the
+user's next message confirms, resolved via the existing chat-history
+mechanism below (the same one that already handles "which slide?" →
+"3rd slide"). If the user's reply names a different slide instead of
+confirming, that's what gets applied. **This replaced an earlier
+design that applied the change to the selected slide directly with no
+confirmation step** - dropped at the user's request after the direct-
+apply version misidentified which slide was selected in practice
+(root cause not fully isolated; confirming first removes the failure
+mode regardless of cause, at the cost of one extra turn). No slide
+marked and none named → the model still just asks which slide.
+`selectedSlideId` is optional server-side (defaults to no slide
+      marked) so older/partial requests don't fail.
+  - **Bug found + fixed: stale-title answers after a manual edit**. User
+    report: manually renamed slide 12's title on the canvas, then asked
+    the chat "what is title of this slide???" - it answered with the
+    slide's _old_ title, from an assistant reply several turns earlier in
+    the conversation, ignoring that the deck had since changed. Traced
+    the full data path (`ChatPanel.tsx` reads `useDeckStore.getState()`
+    fresh at send time → posts the live deck → `serializeDeckContext`
+    rebuilds context from that exact payload every request) and found no
+    staleness in the code - the deck sent per request is always current.
+    The likely cause is a prompt gap: nothing told the model the "Current
+    deck" block should win over its own earlier statements in chat
+    history, and the model apparently favored its most recent assistant
+    message (which literally names the old title) over re-reading the
+    fresh context. Fixed by adding an explicit rule: the Current deck
+    section is authoritative, may reflect manual edits the model was
+    never told about via a message, and must be trusted over anything
+    said earlier in the conversation, including the model's own prior
+    replies. Not yet verified live (no API key in the session that made
+    this fix) - re-test the exact repro (rename a slide manually, then
+    ask a factual question about it) before considering this closed.
+  - **Follow-up bug found in the same session, distinct root cause: a
+    named slide _number_ resolving to the wrong id.** User pointed out
+    (with console evidence) that the client was sending the fresh,
+    correct selected-slide title, yet the chat kept insisting "slide 4"
+    had titles like "adf"/"etuoo"/"ABCDEF" across consecutive turns, none
+    of which matched the real slide 4 ("Adaptations", confirmed live in
+    both the canvas and the console log). The user was naming the slide
+    explicitly by number every time - this isn't the selection-confirm
+    flow above, it's rule 4 (reference the exact id). Root cause: a
+    slide's number is purely its array position, recalculated fresh
+    every request by `serializeDeckContext` - it is not a stable id, and
+    can point at a different slide turns later if the deck's slide order
+    or count changed in between (adds/deletes earlier in the same
+    conversation). The model was apparently reusing an id it associated
+    with "slide 4" from an earlier turn instead of re-deriving it from
+    the current numbered list every time - the same underlying failure
+    pattern as the bug above (trusting conversational memory over fresh
+    context), but for id-resolution rather than content. Fixed by adding
+    an explicit rule stating slide numbers are recalculated every request
+    and must never be resolved from an earlier turn's mapping. Also not
+    yet verified live for the same reason - re-test with the exact repro
+    (name a slide by number across several turns while the deck's slide
+    count/order has changed earlier in the conversation).
   - **Bug found + fixed after initial ship**: the very first version only
     sent `[system, currentMessage]` to OpenAI on every `/api/chat` call —
     no prior turns — so any multi-turn exchange (model asks "which

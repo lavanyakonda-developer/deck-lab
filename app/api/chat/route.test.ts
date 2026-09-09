@@ -284,7 +284,7 @@ describe("POST /api/chat", () => {
     expect(systemMessage.content).toContain("Objectives");
   });
 
-  it("marks the currently selected slide in the deck context so an unqualified edit resolves to it", async () => {
+  it("marks the currently selected slide in the deck context so the model can identify it", async () => {
     mockCreate.mockResolvedValue(makeChunkStream([]));
     await POST(
       makeRequest({
@@ -301,6 +301,50 @@ describe("POST /api/chat", () => {
     );
     expect(systemMessage.content).not.toMatch(
       /id="a"[^\n]*\(currently selected/,
+    );
+  });
+
+  it("instructs the model to confirm before editing an unqualified request's implied slide, rather than applying it directly", async () => {
+    mockCreate.mockResolvedValue(makeChunkStream([]));
+    await POST(
+      makeRequest({
+        message: "change title to JS Components",
+        deck,
+        selectedSlideId: "b",
+      }),
+    );
+
+    const callArgs = mockCreate.mock.calls[0][0];
+    const instructions = callArgs.messages[0].content.split("Current deck:")[0];
+    expect(instructions).toMatch(/do NOT call a tool yet/i);
+    expect(instructions).toMatch(/ask for confirmation/i);
+    expect(instructions).not.toMatch(/apply the change to that slide/i);
+  });
+
+  it("instructs the model to trust the fresh deck context over its own earlier statements in history", async () => {
+    mockCreate.mockResolvedValue(makeChunkStream([]));
+    await POST(makeRequest({ message: "what is the title of slide 2?", deck }));
+
+    const callArgs = mockCreate.mock.calls[0][0];
+    const instructions = callArgs.messages[0].content.split("Current deck:")[0];
+    expect(instructions).toMatch(/always the true, up-to-date state/i);
+    expect(instructions).toMatch(
+      /manual edits the user made directly on the canvas/i,
+    );
+    expect(instructions).toMatch(
+      /even if it contradicts what you said in an earlier turn/i,
+    );
+  });
+
+  it("instructs the model to re-resolve a named slide number fresh every turn, not reuse an earlier mapping", async () => {
+    mockCreate.mockResolvedValue(makeChunkStream([]));
+    await POST(makeRequest({ message: "what is title on slide 4", deck }));
+
+    const callArgs = mockCreate.mock.calls[0][0];
+    const instructions = callArgs.messages[0].content.split("Current deck:")[0];
+    expect(instructions).toMatch(/is NOT a stable identifier/i);
+    expect(instructions).toMatch(
+      /never reuse an id you associated with "slide N" in an earlier reply/i,
     );
   });
 
