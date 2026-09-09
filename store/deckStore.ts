@@ -74,11 +74,6 @@ export const useDeckStore = create<DeckState>()((set) => ({
         orderedIds.length === currentIds.length &&
         currentIds.every((id) => orderedIds.includes(id));
       if (!isSamePermutation) {
-        if (process.env.NODE_ENV !== "production") {
-          console.warn(
-            "reorderSlides: orderedIds must be a permutation of current slide ids",
-          );
-        }
         return state;
       }
       const byId = new Map(state.deck.slides.map((slide) => [slide.id, slide]));
