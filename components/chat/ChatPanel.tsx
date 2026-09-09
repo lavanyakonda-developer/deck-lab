@@ -2,12 +2,37 @@
 
 import { useState } from "react";
 import { applyToolCall } from "@/lib/ai/applyToolCalls";
+import {
+  findPendingImageAlts,
+  generateImageForSlide,
+} from "@/lib/ai/generateImage";
 import { parseSSEStream } from "@/lib/ai/sseClient";
 import type { ValidatedToolCall } from "@/lib/ai/tools";
 import { createId } from "@/lib/id";
 import type { Deck, Slide } from "@/lib/schema/slide";
 import { useChatStore } from "@/store/chatStore";
 import { useDeckStore } from "@/store/deckStore";
+
+const imageActions = {
+  getSlide: (id: string) =>
+    useDeckStore.getState().deck.slides.find((slide) => slide.id === id),
+  updateSlide: useDeckStore.getState().updateSlide,
+};
+
+// Scans the whole current deck for image blocks the model requested but
+// hasn't generated yet, and kicks off generation for any not already
+// triggered - fire-and-forget, so it never blocks reading the rest of the
+// stream. `triggered` de-dupes across the many events in one response.
+function triggerPendingImageGeneration(triggered: Set<string>) {
+  for (const slide of useDeckStore.getState().deck.slides) {
+    for (const alt of findPendingImageAlts(slide)) {
+      const key = `${slide.id}:${alt}`;
+      if (triggered.has(key)) continue;
+      triggered.add(key);
+      void generateImageForSlide(imageActions, slide.id, alt);
+    }
+  }
+}
 
 export function ChatPanel() {
   const [input, setInput] = useState("");
@@ -21,6 +46,7 @@ export function ChatPanel() {
 
   const sendMessage = async (message: string) => {
     const deck = useDeckStore.getState().deck;
+    const selectedSlideId = useDeckStore.getState().selectedSlideId;
     // The user's message was already pushed onto chatStore by submitPrompt,
     // so it's the last entry here - everything before it is prior context.
     const currentMessages = useChatStore.getState().messages;
@@ -31,7 +57,7 @@ export function ChatPanel() {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, deck, history }),
+      body: JSON.stringify({ message, deck, history, selectedSlideId }),
     });
 
     if (!response.ok) {
@@ -43,6 +69,7 @@ export function ChatPanel() {
 
     let assistantMessageId: string | null = null;
     let deckCleared = false;
+    const triggeredImages = new Set<string>();
 
     for await (const evt of parseSSEStream(response)) {
       setShowThinking(false);
@@ -98,6 +125,8 @@ export function ChatPanel() {
           throw new Error(error);
         }
       }
+
+      triggerPendingImageGeneration(triggeredImages);
     }
   };
 
