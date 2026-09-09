@@ -10,8 +10,8 @@ export function SlideCanvas() {
     slides.find((slide) => slide.id === selectedSlideId) ?? slides[0] ?? null;
 
   return (
-    <div className="flex flex-1 items-center justify-center overflow-auto bg-zinc-100 p-6 dark:bg-zinc-900">
-      <div className="aspect-video w-full max-w-3xl overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="flex min-w-0 flex-1 items-center justify-center overflow-auto bg-zinc-100 p-6 dark:bg-zinc-900">
+      <div className="aspect-video w-full max-w-4xl overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         {selectedSlide ? (
           <SlideRenderer slide={selectedSlide} />
         ) : (

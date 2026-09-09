@@ -17,7 +17,7 @@ export function ContentSlide({ slide }: { slide: Slide }) {
         ariaLabel="Slide title"
         className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50"
       />
-      <div className="flex flex-1 flex-col justify-center gap-4">
+      <div className="flex flex-1 flex-col gap-4">
         {slide.body.map((block, i) => (
           <EditableContentBlock
             key={i}

@@ -76,9 +76,49 @@ thumbnail rail): `ui-reference.png` (repo root).
 - **Schema/validation**: Zod (`lib/schema/slide.ts`) — one schema doubles as
   the TypeScript type source and (later) the JSON-schema fed to OpenAI's
   structured outputs / tool definitions.
-- **LLM**: OpenAI SDK, server-side only (Next.js Route Handlers under
-  `app/api/`). `OPENAI_API_KEY` is read only in server code, never shipped to
-  the client bundle. Default model: `gpt-4o` (see `.env.local.example`).
+- **LLM**: OpenAI SDK (`openai` npm package, v6), server-side only (Next.js
+  Route Handlers under `app/api/`). `OPENAI_API_KEY` is read only in server
+  code (`lib/ai/openaiClient.ts`, lazy singleton — never called at module
+  load, so a missing key can't break `npm run build`), never shipped to the
+  client bundle (verified: `grep` over `.next/static` for the key/client
+  factory function finds nothing). Default model: `gpt-4o` via `OPENAI_MODEL`
+  (see `.env.local.example`).
+- **AI generation pipeline** (`lib/ai/`): `deckJsonSchema.ts` is a
+  hand-written (not zod-derived) JSON Schema passed as OpenAI's
+  `response_format: { type: "json_schema", json_schema: ... }` — hand-written
+  because OpenAI's strict structured-output mode only supports a subset of
+  JSON Schema (no `minItems`/`minLength`/etc.), so those content-quality
+  minimums are enforced separately, after the fact, by
+  `deckGenerationSchema.ts` (a zod schema mirroring `lib/schema/slide.ts` but
+  with every optional field `.nullable()` instead of `.optional()`, since
+  strict mode requires every property present and uses `null` for "not
+  provided"). `normalizeGeneratedDeck.ts` converts that
+  nulls-instead-of-optional shape into the canonical `Deck`/`Slide` type
+  (assigning real ids — the model never generates ids) and the result is
+  re-validated against the canonical `DeckSchema` before ever reaching the
+  store. `generateDeck.ts` orchestrates the OpenAI call + both validation
+  passes + normalization; `app/api/generate/route.ts` is the thin HTTP
+  wrapper (400 on bad input, 502 with the error message on generation
+  failure). This is deliberately a one-shot Chat Completions call, no
+  streaming (Phase 5) and no tool calls (Phase 4) yet — every submitted
+  prompt fully replaces the deck via the existing `loadDeck` store action.
+- **Chat UI**: `store/chatStore.ts` (message list, persisted; `isGenerating`
+  flag, deliberately excluded from persistence via `partialize` so a
+  mid-request refresh never restores a stuck "Generating…" state) and
+  `components/chat/ChatPanel.tsx` (a real client component: textarea +
+  submit, posts to `/api/generate`, shows a loading state, then an assistant
+  summary message).
+- **Layout**: fixed desktop/MacBook layout, not responsive — the user
+  explicitly deprioritized cross-device support. `app/page.tsx` is always
+  `flex-row` (no `md:` breakpoints): a fixed `w-[380px]` chat sidebar
+  (`ChatPanel.tsx`) + a `flex-1 min-w-0` deck area. The `min-w-0` on every
+  level of that right-hand flex chain (`main`, `SlideCanvas.tsx`,
+  `ThumbnailRail.tsx`) is load-bearing, not decorative — without it, flex
+  items default to `min-width: auto` and refuse to shrink below their
+  content's intrinsic width, so `ThumbnailRail`'s `overflow-x-auto` silently
+  stops scrolling and instead widens the whole layout once enough
+  thumbnails are added. Keep `min-w-0` on any new element added to that
+  chain.
 - **Testing**: Vitest (`vitest.config.mts`, `environment: "jsdom"`) for
   schema/store unit tests. `npm run test`.
 - **Drag/reorder**: `@dnd-kit/core` + `@dnd-kit/sortable` — in use since
@@ -91,11 +131,13 @@ thumbnail rail): `ui-reference.png` (repo root).
   store's `updateSlide` on blur/Enter; Escape reverts. Used by
   `EditableContentBlock.tsx` (replaced the old read-only
   `ContentBlockRenderer.tsx`, which was deleted).
-- **Persistence**: `localStorage` via Zustand `persist` middleware, in use
-  since Phase 2 (`store/deckStore.ts`, key `deck-lab:deck`). Uses
-  `skipHydration: true` so SSR/first paint always match the in-code seed
-  deck; `components/deck/DeckHydrator.tsx` calls `persist.rehydrate()` once
-  on mount to load any saved deck. No backend DB (per O2).
+- **Persistence**: `localStorage` via Zustand `persist` middleware — both
+  the deck (`store/deckStore.ts`, key `deck-lab:deck`) and chat history
+  (`store/chatStore.ts`, key `deck-lab:chat`). Both use `skipHydration:
+true` so SSR/first paint always match their in-code defaults;
+  `components/StoreHydrator.tsx` calls `persist.rehydrate()` for both once
+  on mount. Any new persisted store should follow the same
+  skipHydration + StoreHydrator pattern. No backend DB (per O2).
 - **Charts** (Phase 6): Recharts.
 - **Images** (Phase 6): OpenAI image generation via a server route, with a
   graceful placeholder fallback.
@@ -129,21 +171,21 @@ manual testing checklist, automated verification, DoD) lives in
 `phases.txt` — treat that as the authoritative per-phase spec. This table is
 the status tracker.
 
-| Phase | Name                                                              | Status                                                                                                                            |
-| ----- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| 0     | Project Scaffolding & Shell UI                                    | ✅ Done — committed `chore: scaffold Next.js app with two-pane shell UI`, pushed to `origin/main`                                 |
-| 1     | Slide Schema & Deck State Model                                   | ✅ Done — committed `feat: add slide schema and deck state model`, pushed to `origin/main`                                        |
-| 2     | Manual Editing (Complete, AI-Free Product)                        | ✅ Done — 6 commits (creation/deletion/reordering/text-editing/SSR fix/persistence), **not yet pushed**; user is manually testing |
-| 3     | AI Initial Generation (two-phase gen, phase 1)                    | Not started                                                                                                                       |
-| 4     | Agentic Tool-Use & Diff-Based Refinement (two-phase gen, phase 2) | Not started                                                                                                                       |
-| 5     | Streaming                                                         | Not started                                                                                                                       |
-| 6     | Rich Content: Images, Charts, Tables                              | Not started                                                                                                                       |
-| 7     | Export                                                            | Not started                                                                                                                       |
-| 8     | Unified Undo/Redo (Nice to Have)                                  | Not started                                                                                                                       |
-| 9     | Themes / Templates (Nice to Have)                                 | Not started                                                                                                                       |
-| 10    | Context Window Management (Nice to Have)                          | Not started                                                                                                                       |
-| 11    | Multiple Presentation Projects (Nice to Have)                     | Not started                                                                                                                       |
-| 12    | Deployment, README, and Final Polish                              | Not started                                                                                                                       |
+| Phase | Name                                                              | Status                                                                                                                        |
+| ----- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 0     | Project Scaffolding & Shell UI                                    | ✅ Done — committed `chore: scaffold Next.js app with two-pane shell UI`, pushed to `origin/main`                             |
+| 1     | Slide Schema & Deck State Model                                   | ✅ Done — committed `feat: add slide schema and deck state model`, pushed to `origin/main`                                    |
+| 2     | Manual Editing (Complete, AI-Free Product)                        | ✅ Done — 6 commits (creation/deletion/reordering/text-editing/SSR fix/persistence), reviewed and manually tested by the user |
+| 3     | AI Initial Generation (two-phase gen, phase 1)                    | ✅ Done — uncommitted (user commits themselves); verified end-to-end against the live OpenAI API                              |
+| 4     | Agentic Tool-Use & Diff-Based Refinement (two-phase gen, phase 2) | Not started                                                                                                                   |
+| 5     | Streaming                                                         | Not started                                                                                                                   |
+| 6     | Rich Content: Images, Charts, Tables                              | Not started                                                                                                                   |
+| 7     | Export                                                            | Not started                                                                                                                   |
+| 8     | Unified Undo/Redo (Nice to Have)                                  | Not started                                                                                                                   |
+| 9     | Themes / Templates (Nice to Have)                                 | Not started                                                                                                                   |
+| 10    | Context Window Management (Nice to Have)                          | Not started                                                                                                                   |
+| 11    | Multiple Presentation Projects (Nice to Have)                     | Not started                                                                                                                   |
+| 12    | Deployment, README, and Final Polish                              | Not started                                                                                                                   |
 
 Must-Haves = Phases 0–7 (fallback submission point if time runs out).
 Nice-to-Haves = Phases 8–11 (additive, droppable individually).
@@ -200,11 +242,11 @@ for every remaining phase without being re-asked:
   `feat: render slides in preview panel`, `feat: add manual slide creation`,
   `feat: add slide deletion`, `feat: add slide reordering`,
   `feat: add manual text editing`.
-- **Do not commit at the end of a phase.** As of the Phase 1 approval, the
+- **Do not commit at the end of a phase.** As of Phase 2's completion, the
   user commits locally themselves — leave changes staged/unstaged when a
   phase is done. Do not run `git commit` unless the user explicitly asks for
-  it in that turn. (Phases 0 and 1 were committed by the assistant, following
-  the convention below; that practice stopped there.)
+  it in that turn. (Phases 0–2 were committed by the assistant, following the
+  convention below; that practice stopped after Phase 2.)
 - When the user does ask for a commit, use the prefixes below and end the
   message with the standard attribution footer (Co-Authored-By /
   Claude-Session lines).
