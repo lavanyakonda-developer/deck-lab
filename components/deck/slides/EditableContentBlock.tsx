@@ -1,6 +1,33 @@
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import type { ContentBlock } from "@/lib/schema/slide";
 import { InlineEditable } from "../InlineEditable";
 
+const CHART_COLORS = [
+  "#2563eb",
+  "#16a34a",
+  "#d97706",
+  "#dc2626",
+  "#7c3aed",
+  "#0891b2",
+];
+
+// Only plain text (bullets, paragraphs - and slide title/subtitle,
+// handled by the slide components) is manually editable in this project's
+// scope. table/chart/image are read-only here by design - changing them
+// goes through chat instead.
 export function EditableContentBlock({
   block,
   onChange,
@@ -49,17 +76,7 @@ export function EditableContentBlock({
                   key={hi}
                   className="border-b border-zinc-300 px-3 py-2 font-semibold text-zinc-900 dark:border-zinc-700 dark:text-zinc-100"
                 >
-                  <InlineEditable
-                    value={header}
-                    onCommit={(next) => {
-                      const headers = block.headers.map((h, idx) =>
-                        idx === hi ? next : h,
-                      );
-                      onChange({ ...block, headers });
-                    }}
-                    placeholder="Header"
-                    ariaLabel={`Column ${hi + 1} header`}
-                  />
+                  {header}
                 </th>
               ))}
             </tr>
@@ -72,25 +89,96 @@ export function EditableContentBlock({
                     key={ci}
                     className="border-b border-zinc-200 px-3 py-2 text-zinc-700 dark:border-zinc-800 dark:text-zinc-300"
                   >
-                    <InlineEditable
-                      value={cell}
-                      onCommit={(next) => {
-                        const rows = block.rows.map((r, rIdx) =>
-                          rIdx === ri
-                            ? r.map((c, cIdx) => (cIdx === ci ? next : c))
-                            : r,
-                        );
-                        onChange({ ...block, rows });
-                      }}
-                      placeholder="Cell"
-                      ariaLabel={`Row ${ri + 1}, column ${ci + 1}`}
-                    />
+                    {cell}
                   </td>
                 ))}
               </tr>
             ))}
           </tbody>
         </table>
+      );
+    case "chart":
+      return (
+        <div className="flex flex-col gap-2">
+          <div className="h-56 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              {block.chartType === "pie" ? (
+                <PieChart>
+                  <Pie
+                    data={block.data}
+                    dataKey="value"
+                    nameKey="label"
+                    outerRadius="80%"
+                    label
+                    isAnimationActive={false}
+                  >
+                    {block.data.map((_, i) => (
+                      <Cell
+                        key={i}
+                        fill={CHART_COLORS[i % CHART_COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              ) : block.chartType === "line" ? (
+                <LineChart data={block.data}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="label" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke={CHART_COLORS[0]}
+                    strokeWidth={2}
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              ) : (
+                <BarChart data={block.data}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="label" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar
+                    dataKey="value"
+                    fill={CHART_COLORS[0]}
+                    isAnimationActive={false}
+                  />
+                </BarChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+          {block.caption && (
+            <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
+              {block.caption}
+            </p>
+          )}
+        </div>
+      );
+    case "image":
+      return (
+        <div className="flex flex-col gap-2">
+          {block.url ? (
+            // eslint-disable-next-line @next/next/no-img-element -- data: URIs, not an optimizable remote image
+            <img
+              src={block.url}
+              alt={block.alt}
+              className="max-h-56 w-full rounded-md object-contain"
+            />
+          ) : (
+            <div className="flex h-40 w-full animate-pulse flex-col items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 text-zinc-400 dark:border-zinc-700 dark:text-zinc-600">
+              <span className="text-2xl">🖼️</span>
+              <span className="max-w-[80%] truncate text-xs">{block.alt}</span>
+            </div>
+          )}
+          {block.caption && (
+            <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
+              {block.caption}
+            </p>
+          )}
+        </div>
       );
   }
 }
