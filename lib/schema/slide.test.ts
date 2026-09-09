@@ -48,6 +48,89 @@ describe("SlideSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("accepts a chart block", () => {
+    const result = SlideSchema.safeParse({
+      id: "s7",
+      type: "content",
+      title: "Revenue",
+      body: [
+        {
+          type: "chart",
+          chartType: "bar",
+          data: [
+            { label: "Q1", value: 10 },
+            { label: "Q2", value: 20 },
+          ],
+          caption: "Quarterly revenue",
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a chart block with zero data points", () => {
+    const result = SlideSchema.safeParse({
+      id: "s8",
+      type: "content",
+      title: "Bad Chart",
+      body: [{ type: "chart", chartType: "bar", data: [] }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a chart block with an invalid chartType", () => {
+    const result = SlideSchema.safeParse({
+      id: "s9",
+      type: "content",
+      title: "Bad Chart",
+      body: [
+        {
+          type: "chart",
+          chartType: "pie3d",
+          data: [{ label: "A", value: 1 }],
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts an image block with a null url (not yet generated)", () => {
+    const result = SlideSchema.safeParse({
+      id: "s10",
+      type: "content",
+      title: "Photo",
+      body: [{ type: "image", url: null, alt: "A modern office" }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an image block with a real url", () => {
+    const result = SlideSchema.safeParse({
+      id: "s11",
+      type: "content",
+      title: "Photo",
+      body: [
+        {
+          type: "image",
+          url: "data:image/png;base64,abc123",
+          alt: "A modern office",
+          caption: "Our new HQ",
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an image block missing alt text", () => {
+    const result = SlideSchema.safeParse({
+      id: "s12",
+      type: "content",
+      title: "Photo",
+      body: [{ type: "image", url: null, alt: "" }],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("rejects an unknown content block type", () => {
     const result = SlideSchema.safeParse({
       id: "s5",

@@ -76,4 +76,98 @@ describe("GeneratedDeckSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("accepts a chart block with a nullable caption", () => {
+    const result = GeneratedDeckSchema.safeParse({
+      title: "Revenue",
+      slides: [
+        {
+          type: "content",
+          title: "Revenue",
+          subtitle: null,
+          body: [
+            {
+              type: "chart",
+              chartType: "bar",
+              data: [
+                { label: "Q1", value: 10 },
+                { label: "Q2", value: 20 },
+              ],
+              caption: null,
+              column: null,
+            },
+          ],
+          layout: null,
+          speakerNotes: "",
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a chart block with zero data points", () => {
+    const result = GeneratedDeckSchema.safeParse({
+      title: "Bad Chart",
+      slides: [
+        {
+          type: "content",
+          title: "X",
+          subtitle: null,
+          body: [
+            {
+              type: "chart",
+              chartType: "pie",
+              data: [],
+              caption: null,
+              column: null,
+            },
+          ],
+          layout: null,
+          speakerNotes: "",
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts an image block (no url field - the model never generates one)", () => {
+    const result = GeneratedDeckSchema.safeParse({
+      title: "Photo Deck",
+      slides: [
+        {
+          type: "content",
+          title: "Photo",
+          subtitle: null,
+          body: [
+            {
+              type: "image",
+              alt: "A modern office",
+              caption: null,
+              column: null,
+            },
+          ],
+          layout: null,
+          speakerNotes: "",
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an image block with empty alt text", () => {
+    const result = GeneratedDeckSchema.safeParse({
+      title: "Photo Deck",
+      slides: [
+        {
+          type: "content",
+          title: "Photo",
+          subtitle: null,
+          body: [{ type: "image", alt: "", caption: null, column: null }],
+          layout: null,
+          speakerNotes: "",
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
 });

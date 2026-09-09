@@ -32,10 +32,36 @@ export const TableBlockSchema = z.object({
   ...columnField,
 });
 
+export const ChartTypeSchema = z.enum(["bar", "line", "pie"]);
+export type ChartType = z.infer<typeof ChartTypeSchema>;
+
+export const ChartBlockSchema = z.object({
+  type: z.literal("chart"),
+  chartType: ChartTypeSchema,
+  data: z
+    .array(z.object({ label: z.string().min(1), value: z.number() }))
+    .min(1),
+  caption: z.string().optional(),
+  ...columnField,
+});
+
+// url is nullable (not optional) because "not generated yet" / "generation
+// failed" is real application state, not just an AI-protocol artifact -
+// see lib/ai/generateImage.ts for the async generation flow that fills it in.
+export const ImageBlockSchema = z.object({
+  type: z.literal("image"),
+  url: z.string().nullable(),
+  alt: z.string().min(1),
+  caption: z.string().optional(),
+  ...columnField,
+});
+
 export const ContentBlockSchema = z.discriminatedUnion("type", [
   BulletsBlockSchema,
   ParagraphBlockSchema,
   TableBlockSchema,
+  ChartBlockSchema,
+  ImageBlockSchema,
 ]);
 export type ContentBlock = z.infer<typeof ContentBlockSchema>;
 

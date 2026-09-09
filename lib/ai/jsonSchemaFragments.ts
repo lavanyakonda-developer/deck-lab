@@ -46,6 +46,43 @@ export const contentBlockArrayJsonSchema = {
         },
         required: ["type", "headers", "rows", "column"],
       },
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          type: { type: "string", enum: ["chart"] },
+          chartType: { type: "string", enum: ["bar", "line", "pie"] },
+          data: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                label: { type: "string" },
+                value: { type: "number" },
+              },
+              required: ["label", "value"],
+            },
+          },
+          caption: { type: ["string", "null"] },
+          column: { type: ["integer", "null"], enum: [0, 1, null] },
+        },
+        required: ["type", "chartType", "data", "caption", "column"],
+      },
+      {
+        // No "url" here - the model never generates the actual image, only
+        // describes what's wanted via "alt". lib/ai/generateImage.ts fills
+        // url in asynchronously after the tool call / slide is applied.
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          type: { type: "string", enum: ["image"] },
+          alt: { type: "string" },
+          caption: { type: ["string", "null"] },
+          column: { type: ["integer", "null"], enum: [0, 1, null] },
+        },
+        required: ["type", "alt", "caption", "column"],
+      },
     ],
   },
 };

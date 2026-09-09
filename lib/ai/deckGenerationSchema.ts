@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SlideTypeSchema } from "@/lib/schema/slide";
+import { ChartTypeSchema, SlideTypeSchema } from "@/lib/schema/slide";
 
 // Mirrors lib/schema/slide.ts but every optional field is nullable instead
 // of absent, matching what OpenAI's strict structured-output mode actually
@@ -28,10 +28,31 @@ const TableBlockGenerated = z.object({
   ...columnField,
 });
 
+const ChartBlockGenerated = z.object({
+  type: z.literal("chart"),
+  chartType: ChartTypeSchema,
+  data: z
+    .array(z.object({ label: z.string().min(1), value: z.number() }))
+    .min(1),
+  caption: z.string().nullable(),
+  ...columnField,
+});
+
+// No "url" - the model only describes the image via "alt"; url is filled
+// in asynchronously by lib/ai/generateImage.ts after this block lands.
+const ImageBlockGenerated = z.object({
+  type: z.literal("image"),
+  alt: z.string().min(1),
+  caption: z.string().nullable(),
+  ...columnField,
+});
+
 export const ContentBlockGeneratedSchema = z.discriminatedUnion("type", [
   BulletsBlockGenerated,
   ParagraphBlockGenerated,
   TableBlockGenerated,
+  ChartBlockGenerated,
+  ImageBlockGenerated,
 ]);
 
 export const LayoutHintsGeneratedSchema = z.object({
