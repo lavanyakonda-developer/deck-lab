@@ -1,6 +1,6 @@
 # Deck Lab
 
-An AI-powered presentation builder — describe a deck in chat, watch it get
+An AI-powered presentation builder describe a deck in chat, watch it get
 built slide by slide, refine it conversationally, edit text by hand, and
 export to PDF or PPTX. Built for the Sarvam AI technical assignment.
 
@@ -40,23 +40,11 @@ seed example deck already in place.
 
 - **Only text is directly editable on a slide**: titles, subtitles, bullet
   items, and paragraph text — click any of these on the canvas and type. **Nothing else is manually editable.** Tables, charts, and images have **no**
-  manual editing UI at all:
-
-- No cell editing on tables.
-- No editing a chart's type or its underlying data.
-- No replacing/re-generating an image by clicking it.
-
-Any change to a table, chart, or image has to go through chat (e.g. "turn
-this into a bar chart", "add a row for Q3", "change this image to...")
-
-- **Context window management** — long chat histories and the full deck are
-  sent to OpenAI on every request with no summarization or trimming. Very
-  long sessions or very large decks could hit token limits or get slow/costly.
-- **Multiple presentation projects** — there's only ever one deck. Generating
-  a new one replaces the current deck; there's no project list/dashboard to
-  switch between saved decks.
+  manual editing UI at all: No cell editing on tables, No editing a chart's type or its underlying data , No replacing/re-generating an image by clicking it. Any change to a table, chart, or image has to go through chat (e.g. "tur this into a bar chart", "add a row for Q3", "change this image to...")
+- **Context window management** — This Nice to have feature is not developed
+- **Multiple presentation projects** — This Nice to have feature is not developed
 - **The Light/Dark toggle is a _presentation_ theme, not a website theme** —
-  it's easy to assume it's a dark-mode switch for the app itself, but it only
+  don't assume it's a dark-mode switch for the app itself, it only
   changes the color theme of the **deck** (canvas, thumbnails, and — this is
   the point — both exports). Whichever one is selected when you click
   Download PDF/PPTX is the theme baked into that file, so you can download a
@@ -64,10 +52,8 @@ this into a bar chart", "add a row for Q3", "change this image to...")
   the app's UI looks like. The chat panel and header are never themed by
   this control.
 - **No speaker notes** — the original schema had a `speakerNotes` field
-  (generatable by the AI, editable via `update_slide`), but it was removed
-  entirely: nothing anywhere ever displayed it, so it was a hidden, unused
-  field carried around for no benefit. It's not present in the slide schema,
-  generation, chat editing, or exports.
+  (generatable by the AI, editable via `update_slide`),it's unused
+  ,so didn't consider in schema.
 - **Tool calls aren't reported back to the model** — after OpenAI picks a
   tool, this app validates and applies it directly (client-side, against the
   real store) rather than sending a `role: "tool"` result back for a second
@@ -95,10 +81,8 @@ this into a bar chart", "add a row for Q3", "change this image to...")
   action's return type and threading that result into the reply, not a
   small patch.
 - **`generate_deck` combined with other tool calls in one turn can silently
-  discard them** — the system prompt tells the model never to combine
-  `generate_deck` with other tools in the same turn, but nothing in code
-  enforces it. If the model does it anyway, any `update_slide`/`add_slide`
-  applied earlier in that turn is wiped out when the generated deck's
+  discard them** — any `update_slide`/`add_slide`
+  applied earlier in that turn along with generate is wiped out when the generated deck's
   `loadDeck()` call replaces the entire deck object at the end of the
   stream, with no warning.
 - **A mid-stream failure doesn't roll back tool calls already applied** — if
@@ -106,24 +90,9 @@ this into a bar chart", "add a row for Q3", "change this image to...")
   tool calls already streamed and applied client-side stay applied. The
   user only sees a generic error message, with no indication the deck
   already partially changed.
-- **The chat's confirmation flow and slide-number resolution are
-  prompt-level rules, not structural guarantees** — asking for confirmation
-  before an unqualified edit, and always re-resolving a slide "number" from
-  the current request's deck context rather than an earlier turn's mapping,
-  are both enforced purely by system-prompt wording (`SYSTEM_INSTRUCTIONS`
-  in `app/api/chat/route.ts`). This project's own history includes two real
-  bugs from exactly this class (stale-title answers, slide-number-to-id
-  misresolution) that were mitigated with more prompt text, not eliminated
-  by a structural fix — a sufficiently different ambiguous phrasing could
-  still reproduce a similar failure.
 - **No cross-tab or concurrent-edit sync** — nothing listens for `storage`
   events, so two tabs open to the app silently diverge; whichever tab's
   debounced write lands last wins, with no merge and no conflict warning.
-  The same root cause can lose an in-progress manual edit: `InlineEditable`
-  commits by slide id on blur, so if an AI-driven chat edit deletes that
-  exact slide between when the user starts typing and when they blur, the
-  commit silently no-ops (same existence-check behavior as the tool-call
-  case above) and the user's edit is lost with no feedback.
 
 ## Resetting to the default starting deck
 
