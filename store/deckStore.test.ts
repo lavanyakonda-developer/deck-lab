@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Deck } from "@/lib/schema/slide";
 import { useDeckStore } from "./deckStore";
 import { createHistoryState } from "./historyMiddleware";
@@ -136,14 +136,24 @@ describe("deckStore", () => {
   });
 
   it("persists the deck to localStorage after a mutation", () => {
-    useDeckStore.getState().updateSlide("a", { title: "Persisted Title" });
-    const raw = localStorage.getItem("deck-lab:deck");
-    expect(raw).toBeTruthy();
-    const parsed = JSON.parse(raw as string);
-    expect(
-      parsed.state.deck.slides.find((slide: { id: string }) => slide.id === "a")
-        .title,
-    ).toBe("Persisted Title");
+    vi.useFakeTimers();
+    try {
+      useDeckStore.getState().updateSlide("a", { title: "Persisted Title" });
+      // Writes are debounced (see store/debouncedStorage.ts) - advance past
+      // the delay so the pending write actually lands.
+      vi.runAllTimers();
+
+      const raw = localStorage.getItem("deck-lab:deck");
+      expect(raw).toBeTruthy();
+      const parsed = JSON.parse(raw as string);
+      expect(
+        parsed.state.deck.slides.find(
+          (slide: { id: string }) => slide.id === "a",
+        ).title,
+      ).toBe("Persisted Title");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("rehydrates in-memory state from localStorage via persist.rehydrate()", async () => {
@@ -177,10 +187,19 @@ describe("deckStore", () => {
     });
 
     it("persists to localStorage after a change", () => {
-      useDeckStore.getState().setSlideTheme("dark");
-      const raw = localStorage.getItem("deck-lab:deck");
-      const parsed = JSON.parse(raw as string);
-      expect(parsed.state.slideTheme).toBe("dark");
+      vi.useFakeTimers();
+      try {
+        useDeckStore.getState().setSlideTheme("dark");
+        // Writes are debounced (see store/debouncedStorage.ts) - advance
+        // past the delay so the pending write actually lands.
+        vi.runAllTimers();
+
+        const raw = localStorage.getItem("deck-lab:deck");
+        const parsed = JSON.parse(raw as string);
+        expect(parsed.state.slideTheme).toBe("dark");
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

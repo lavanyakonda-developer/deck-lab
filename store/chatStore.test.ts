@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useChatStore } from "./chatStore";
 
 beforeEach(() => {
@@ -35,14 +35,22 @@ describe("chatStore", () => {
   });
 
   it("persists messages to localStorage but never isGenerating", () => {
-    useChatStore.getState().addMessage("user", "Hello");
-    useChatStore.getState().setGenerating(true);
+    vi.useFakeTimers();
+    try {
+      useChatStore.getState().addMessage("user", "Hello");
+      useChatStore.getState().setGenerating(true);
+      // Writes are debounced (see store/debouncedStorage.ts) - advance past
+      // the delay so the pending write actually lands.
+      vi.runAllTimers();
 
-    const raw = localStorage.getItem("deck-lab:chat");
-    expect(raw).toBeTruthy();
-    const parsed = JSON.parse(raw as string);
-    expect(parsed.state.messages).toHaveLength(1);
-    expect(parsed.state.isGenerating).toBeUndefined();
+      const raw = localStorage.getItem("deck-lab:chat");
+      expect(raw).toBeTruthy();
+      const parsed = JSON.parse(raw as string);
+      expect(parsed.state.messages).toHaveLength(1);
+      expect(parsed.state.isGenerating).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("rehydrates saved messages on a fresh load, isGenerating stays false", async () => {

@@ -4,6 +4,7 @@ import type { Deck, LayoutHints, Slide, SlideType } from "@/lib/schema/slide";
 import { createId } from "@/lib/id";
 import { seedDeck } from "@/lib/seedDeck";
 import { DEFAULT_SLIDE_THEME, type SlideThemeName } from "@/lib/themes";
+import { createDebouncedStorage } from "./debouncedStorage";
 import {
   createHistoryState,
   pushHistory,
@@ -211,7 +212,7 @@ export const useDeckStore = create<DeckState>()(
     }),
     {
       name: "deck-lab:deck",
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => createDebouncedStorage()),
       skipHydration: true,
       // Undo/redo history is deliberately session-only - persisting every
       // past deck snapshot would bloat localStorage indefinitely, and

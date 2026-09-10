@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { createId } from "@/lib/id";
+import { createDebouncedStorage } from "./debouncedStorage";
 
 export interface ChatMessage {
   id: string;
@@ -51,7 +52,7 @@ export const useChatStore = create<ChatState>()(
     }),
     {
       name: "deck-lab:chat",
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => createDebouncedStorage()),
       skipHydration: true,
       // isGenerating is ephemeral request state, never restore it as true.
       partialize: (state) => ({ messages: state.messages }),

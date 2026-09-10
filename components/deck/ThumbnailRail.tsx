@@ -121,8 +121,8 @@ export function ThumbnailRail() {
                 index={index}
                 theme={theme}
                 isSelected={slide.id === selectedSlideId}
-                onSelect={() => selectSlide(slide.id)}
-                onDelete={() => deleteSlide(slide.id)}
+                onSelect={selectSlide}
+                onDelete={deleteSlide}
               />
             ))}
           </SortableContext>

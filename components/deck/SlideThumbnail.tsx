@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { SlideThemeTokens } from "@/lib/themes";
@@ -11,11 +12,11 @@ interface SlideThumbnailProps {
   theme: SlideThemeTokens;
   isSelected: boolean;
   elementId: string;
-  onSelect: () => void;
-  onDelete: () => void;
+  onSelect: (id: string) => void;
+  onDelete: (id: string) => void;
 }
 
-export function SlideThumbnail({
+export const SlideThumbnail = memo(function SlideThumbnail({
   slide,
   index,
   theme,
@@ -48,11 +49,11 @@ export function SlideThumbnail({
       style={style}
       {...attributes}
       {...listeners}
-      onClick={onSelect}
+      onClick={() => onSelect(slide.id)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          onSelect();
+          onSelect(slide.id);
         }
       }}
       role="button"
@@ -66,7 +67,7 @@ export function SlideThumbnail({
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          onDelete();
+          onDelete(slide.id);
         }}
         onPointerDown={(e) => e.stopPropagation()}
         aria-label={`Delete slide ${index + 1}`}
@@ -82,4 +83,4 @@ export function SlideThumbnail({
       </span>
     </div>
   );
-}
+});
