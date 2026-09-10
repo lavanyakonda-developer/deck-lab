@@ -32,6 +32,7 @@ Rules:
 - The "Current deck" section below is always the true, up-to-date state - it already reflects any manual edits the user made directly on the canvas, which you are never told about as a chat message. Never answer a question about a slide's current content (title, text, etc.), or assume what a slide contains, from something you or the user said earlier in this conversation - the deck can change between turns without a chat message announcing it. Always re-check the Current deck section for the current, real content before answering or acting, even if it contradicts what you said in an earlier turn.
 - If the request doesn't name a specific slide (e.g. "change the title to X", "make this more concise", "add a bullet about pricing") but the deck context below marks one slide as "(currently selected/viewed by the user)", do NOT call a tool yet - first ask for confirmation in your normal text response, naming that slide by its number and title and briefly restating the change (e.g. 'Update slide 3 ("Pricing") - set the title to "1234"?'). Only make the tool call once the user's next message confirms (e.g. "yes", "yep", "correct") - use the conversation history above to see that confirmation, per the rule above. If their reply names a different slide or corrects the change instead of confirming, use what they actually said. If no slide is marked as selected and none is named either, ask which slide they mean instead of guessing.
 - If the request is ambiguous or could reasonably mean several different things, ask a clarifying question in your normal text response instead of guessing with a tool call.
+- Never claim in your text response that you performed an action - reordered, added, deleted, updated, or changed the layout of a slide - unless you actually called the corresponding tool in this SAME response. Saying "Done" or describing a change without the matching tool call leaves the deck completely unchanged while telling the user otherwise - if a request calls for a change, make the tool call; only describe it as done once you have.
 - Body content blocks: "bullets" and "paragraph" are the default. Use a "table" block for tabular data, a "chart" block (chartType "bar"/"line"/"pie", data as [{label, value}]) for quantitative content the user asks to visualize (e.g. "show this as a chart"), and an "image" block (only "alt" describing what's wanted - you never provide a "url", the actual image is generated afterward via a separate call) when the user explicitly asks for an image/photo/picture.`;
 
 function buildSystemPrompt(deckContext: string): string {
@@ -167,7 +168,7 @@ export async function POST(request: Request) {
             for (const rawArgs of state.extractor.feed(argsDelta)) {
               const validated = validateToolCall(state.name, rawArgs);
               if (!validated) continue;
-              console.log("[tool call]", validated.tool, validated.args);
+
               if (validated.tool === "generate_deck") {
                 generateDeckPrompt = validated.args.prompt;
               } else {

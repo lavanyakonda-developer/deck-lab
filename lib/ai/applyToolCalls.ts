@@ -20,8 +20,6 @@ interface DeckActions {
 // store's existing actions - the same ones manual editing uses, so a
 // tool call is a targeted patch by construction, never a full rebuild.
 export function applyToolCall(actions: DeckActions, call: ValidatedToolCall) {
-  console.log("[applyToolCall]", call.tool, call.args);
-
   switch (call.tool) {
     case "generate_deck":
       // The server intercepts generate_deck and returns it as

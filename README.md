@@ -158,3 +158,14 @@ this into a bar chart", "add a row for Q3", "change this image to...")
   entirely: nothing anywhere ever displayed it, so it was a hidden, unused
   field carried around for no benefit. It's not present in the slide schema,
   generation, chat editing, or exports.
+- **Tool calls aren't reported back to the model** — after OpenAI picks a
+  tool, this app validates and applies it directly (client-side, against the
+  real store) rather than sending a `role: "tool"` result back for a second
+  model turn, the pattern OpenAI's own docs recommend for general agentic
+  loops. That second round-trip lets a model react to a tool's real outcome
+  or chain calls off another call's result; skipped here since these tools
+  are deterministic store writes with no failure mode to react to. The
+  tradeoff: the model can't chain tool calls that depend on each other's
+  result within one turn (e.g. add a slide, then reorder using its
+  server-assigned id, in the same turn) — that has to span two user turns
+  instead.
