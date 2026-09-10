@@ -39,7 +39,6 @@ describe("downloadDeckAsPptx", () => {
             title: "Title Slide",
             subtitle: "A subtitle",
             body: [],
-            speakerNotes: "",
           },
           {
             id: "s2",
@@ -70,7 +69,6 @@ describe("downloadDeckAsPptx", () => {
                 caption: "An image caption",
               },
             ],
-            speakerNotes: "",
           },
           {
             id: "s3",
@@ -81,7 +79,6 @@ describe("downloadDeckAsPptx", () => {
               { type: "bullets", items: ["Right"], column: 1 },
             ],
             layout: { columnTitles: ["Left", "Right"] },
-            speakerNotes: "",
           },
           {
             id: "s4",
@@ -91,14 +88,12 @@ describe("downloadDeckAsPptx", () => {
               { type: "paragraph", text: "Option A", column: 0 },
               { type: "paragraph", text: "Option B", column: 1 },
             ],
-            speakerNotes: "",
           },
           {
             id: "s5",
             type: "table",
             title: "Table Slide",
             body: [{ type: "table", headers: ["X"], rows: [["1"]] }],
-            speakerNotes: "",
           },
         ],
       },
@@ -141,7 +136,6 @@ describe("downloadDeckAsPptx", () => {
             type: "title",
             title: "Dark Theme Title",
             body: [],
-            speakerNotes: "",
           },
         ],
       },

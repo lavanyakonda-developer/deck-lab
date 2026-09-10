@@ -48,7 +48,6 @@ describe("downloadDeckAsPdf", () => {
             title: "Title Slide",
             subtitle: "A subtitle",
             body: [],
-            speakerNotes: "",
           },
           {
             id: "s2",
@@ -79,7 +78,6 @@ describe("downloadDeckAsPdf", () => {
                 caption: "An image caption",
               },
             ],
-            speakerNotes: "",
           },
           {
             id: "s3",
@@ -103,7 +101,6 @@ describe("downloadDeckAsPdf", () => {
                 ],
               },
             ],
-            speakerNotes: "",
           },
           {
             id: "s4",
@@ -114,7 +111,6 @@ describe("downloadDeckAsPdf", () => {
               { type: "bullets", items: ["Right"], column: 1 },
             ],
             layout: { columnTitles: ["Left", "Right"] },
-            speakerNotes: "",
           },
           {
             id: "s5",
@@ -124,14 +120,12 @@ describe("downloadDeckAsPdf", () => {
               { type: "paragraph", text: "Option A", column: 0 },
               { type: "paragraph", text: "Option B", column: 1 },
             ],
-            speakerNotes: "",
           },
           {
             id: "s6",
             type: "table",
             title: "Table Slide",
             body: [{ type: "table", headers: ["X"], rows: [["1"]] }],
-            speakerNotes: "",
           },
         ],
       },
@@ -174,7 +168,6 @@ describe("downloadDeckAsPdf", () => {
             type: "title",
             title: "Dark Theme Title",
             body: [],
-            speakerNotes: "",
           },
         ],
       },
@@ -197,7 +190,6 @@ describe("downloadDeckAsPdf", () => {
             type: "title",
             title: "Same Content",
             body: [],
-            speakerNotes: "",
           },
         ],
       },

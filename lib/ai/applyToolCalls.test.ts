@@ -44,7 +44,6 @@ describe("applyToolCall", () => {
           subtitle: null,
           body: [{ type: "bullets", items: ["Free", "Pro"], column: null }],
           layout: null,
-          speakerNotes: "",
         },
         index: 2,
       },
@@ -59,7 +58,6 @@ describe("applyToolCall", () => {
         subtitle: undefined,
         body: [{ type: "bullets", items: ["Free", "Pro"], column: undefined }],
         layout: undefined,
-        speakerNotes: "",
       },
       2,
     );
@@ -75,7 +73,6 @@ describe("applyToolCall", () => {
         subtitle: null,
         body: null,
         layout: null,
-        speakerNotes: null,
       },
     };
 
@@ -97,7 +94,6 @@ describe("applyToolCall", () => {
         subtitle: null,
         body: [{ type: "paragraph", text: "New text", column: null }],
         layout: null,
-        speakerNotes: null,
       },
     };
 
@@ -149,7 +145,6 @@ describe("applyToolCall", () => {
           subtitle: null,
           body: [],
           layout: null,
-          speakerNotes: "",
         },
         index: null,
       },
@@ -170,7 +165,6 @@ describe("applyToolCalls", () => {
           subtitle: null,
           body: null,
           layout: null,
-          speakerNotes: null,
         },
       },
       { tool: "delete_slide", args: { id: "b" } },

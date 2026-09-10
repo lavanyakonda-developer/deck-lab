@@ -40,14 +40,12 @@ const slide1: Slide = {
   type: "title",
   title: "Q3 Roadmap",
   body: [],
-  speakerNotes: "",
 };
 const slide2: Slide = {
   id: "s2",
   type: "content",
   title: "Objectives",
   body: [],
-  speakerNotes: "",
 };
 
 describe("POST /api/generate", () => {

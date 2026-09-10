@@ -78,7 +78,6 @@ const UpdateSlideArgsSchema = z.object({
   subtitle: z.string().nullable(),
   body: z.array(ContentBlockGeneratedSchema).nullable(),
   layout: LayoutHintsGeneratedSchema.nullable(),
-  speakerNotes: z.string().nullable(),
 });
 export type UpdateSlideArgs = z.infer<typeof UpdateSlideArgsSchema>;
 
@@ -101,9 +100,8 @@ const updateSlideTool = {
           items: contentBlockArrayJsonSchema.items,
         },
         layout: layoutHintsJsonSchema,
-        speakerNotes: { type: ["string", "null"] },
       },
-      required: ["id", "title", "subtitle", "body", "layout", "speakerNotes"],
+      required: ["id", "title", "subtitle", "body", "layout"],
     },
   },
 };

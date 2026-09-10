@@ -5,6 +5,5 @@ export function createBlankSlide(): Omit<Slide, "id"> {
     type: "content",
     title: "",
     body: [{ type: "bullets", items: ["New bullet point"] }],
-    speakerNotes: "",
   };
 }

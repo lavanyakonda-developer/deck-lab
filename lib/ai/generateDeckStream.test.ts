@@ -38,7 +38,6 @@ const deckJson = JSON.stringify({
       subtitle: null,
       body: [],
       layout: null,
-      speakerNotes: "",
     },
     {
       type: "content",
@@ -46,7 +45,6 @@ const deckJson = JSON.stringify({
       subtitle: null,
       body: [{ type: "bullets", items: ["Grow", "Ship"], column: null }],
       layout: null,
-      speakerNotes: "",
     },
   ],
 });

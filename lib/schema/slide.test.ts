@@ -11,7 +11,6 @@ describe("SlideSchema", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.body).toEqual([]);
-      expect(result.data.speakerNotes).toBe("");
     }
   });
 

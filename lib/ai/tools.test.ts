@@ -49,7 +49,6 @@ describe("validateToolCall", () => {
         subtitle: null,
         body: [{ type: "bullets", items: ["Free", "Pro"], column: null }],
         layout: null,
-        speakerNotes: "",
       },
       index: 2,
     });
@@ -62,7 +61,6 @@ describe("validateToolCall", () => {
           subtitle: null,
           body: [{ type: "bullets", items: ["Free", "Pro"], column: null }],
           layout: null,
-          speakerNotes: "",
         },
         index: 2,
       },
@@ -77,7 +75,6 @@ describe("validateToolCall", () => {
         subtitle: null,
         body: [],
         layout: null,
-        speakerNotes: "",
       },
       index: null,
     });
@@ -91,7 +88,6 @@ describe("validateToolCall", () => {
       subtitle: null,
       body: null,
       layout: null,
-      speakerNotes: null,
     });
     expect(result).toEqual({
       tool: "update_slide",
@@ -101,7 +97,6 @@ describe("validateToolCall", () => {
         subtitle: null,
         body: null,
         layout: null,
-        speakerNotes: null,
       },
     });
   });
@@ -113,7 +108,6 @@ describe("validateToolCall", () => {
       // subtitle omitted entirely
       body: null,
       layout: null,
-      speakerNotes: null,
     });
     expect(result).toBeNull();
   });

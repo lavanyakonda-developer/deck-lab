@@ -75,7 +75,6 @@ describe("DeckSlideStreamParser", () => {
         subtitle: null,
         body: [],
         layout: null,
-        speakerNotes: "",
       },
       {
         type: "content",
@@ -83,7 +82,6 @@ describe("DeckSlideStreamParser", () => {
         subtitle: null,
         body: [{ type: "bullets", items: ["Grow", "Ship"], column: null }],
         layout: null,
-        speakerNotes: "",
       },
       {
         type: "content",
@@ -91,7 +89,6 @@ describe("DeckSlideStreamParser", () => {
         subtitle: null,
         body: [],
         layout: null,
-        speakerNotes: "",
       },
     ],
   });

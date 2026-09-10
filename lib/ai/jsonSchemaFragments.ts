@@ -111,7 +111,6 @@ export const slidePropertiesJsonSchema = {
   type: slideTypeEnumJsonSchema,
   title: { type: "string" },
   subtitle: { type: ["string", "null"] },
-  speakerNotes: { type: "string" },
   layout: layoutHintsJsonSchema,
   body: contentBlockArrayJsonSchema,
 };
@@ -120,7 +119,6 @@ export const slideRequiredFields = [
   "type",
   "title",
   "subtitle",
-  "speakerNotes",
   "layout",
   "body",
 ];

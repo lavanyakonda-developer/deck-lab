@@ -14,7 +14,6 @@ export function normalizeGeneratedDeck(generated: GeneratedDeck): Deck {
       subtitle: slide.subtitle ?? undefined,
       body: slide.body.map(normalizeBlock),
       layout: normalizeLayout(slide.layout),
-      speakerNotes: slide.speakerNotes,
     })),
   };
 }

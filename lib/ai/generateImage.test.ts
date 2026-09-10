@@ -25,7 +25,6 @@ describe("findPendingImageAlts", () => {
         },
         { type: "image", url: null, alt: "A city skyline" },
       ],
-      speakerNotes: "",
     };
     expect(findPendingImageAlts(slide)).toEqual([
       "A modern office",
@@ -39,7 +38,6 @@ describe("findPendingImageAlts", () => {
       type: "content",
       title: "Text only",
       body: [{ type: "paragraph", text: "hi" }],
-      speakerNotes: "",
     };
     expect(findPendingImageAlts(slide)).toEqual([]);
   });
@@ -54,7 +52,6 @@ function makeSlideWithPendingImage(): Slide {
       { type: "paragraph", text: "intro" },
       { type: "image", url: null, alt: "A modern office" },
     ],
-    speakerNotes: "",
   };
 }
 
@@ -144,7 +141,6 @@ describe("generateImageForSlide", () => {
       type: "content",
       title: "Photos",
       body: [{ type: "paragraph", text: "no images here anymore" }],
-      speakerNotes: "",
     };
     const actions = { getSlide: () => slide, updateSlide };
 
@@ -169,7 +165,6 @@ describe("generateImageForSlide", () => {
         },
         { type: "image", url: null, alt: "A modern office" },
       ],
-      speakerNotes: "",
     };
     const updateSlide = vi.fn();
     const actions = { getSlide: () => slide, updateSlide };

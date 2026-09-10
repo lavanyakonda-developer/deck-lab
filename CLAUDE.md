@@ -577,7 +577,17 @@ SlideThemeTokens` prop and applies colors via inline `style`, not
   variants now.
 - `LayoutHints`: `align`, `columns`, `columnTitles`, `density` — all optional.
 - `Slide`: `id`, `type`, `title`, `subtitle?`, `body` (defaults to `[]`),
-  `layout?`, `speakerNotes` (defaults to `""`).
+  `layout?`. **`speakerNotes` was removed entirely at the user's explicit
+  request** (it had no UI anywhere - the AI could set it via generation/
+  `update_slide`, but nothing ever displayed it, so it was a hidden, unused
+  field). Removed from the canonical schema, the AI generation schema, the
+  JSON-schema fragments/tool definitions, `normalizeGeneratedDeck.ts`,
+  `applyToolCalls.ts`, `blankSlide.ts`, `seedDeck.ts`, and every test fixture
+  that constructed a `Slide`. **This creates a gap against M5** below, whose
+  original requirement text explicitly lists "speaker notes" as part of the
+  structured schema - left as-is (not rewritten) since it's the historical
+  record of what the assignment asked for; the deviation is intentional and
+  called out here, not silently dropped.
 - `Deck`: `id`, `title`, `slides: Slide[]`.
 - Store actions are intentionally named to match the AI tool names Phase 4
   will define 1:1 (`add_slide` → `addSlide`, etc.) so tool-call handlers can

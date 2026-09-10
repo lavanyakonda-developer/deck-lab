@@ -145,3 +145,16 @@ this into a bar chart", "add a row for Q3", "change this image to...")
 - **Multiple presentation projects** — there's only ever one deck. Generating
   a new one replaces the current deck; there's no project list/dashboard to
   switch between saved decks.
+- **The Light/Dark toggle is a _presentation_ theme, not a website theme** —
+  it's easy to assume it's a dark-mode switch for the app itself, but it only
+  changes the color theme of the **deck** (canvas, thumbnails, and — this is
+  the point — both exports). Whichever one is selected when you click
+  Download PDF/PPTX is the theme baked into that file, so you can download a
+  dark-themed or light-themed presentation independent of what the rest of
+  the app's UI looks like. The chat panel and header are never themed by
+  this control.
+- **No speaker notes** — the original schema had a `speakerNotes` field
+  (generatable by the AI, editable via `update_slide`), but it was removed
+  entirely: nothing anywhere ever displayed it, so it was a hidden, unused
+  field carried around for no benefit. It's not present in the slide schema,
+  generation, chat editing, or exports.

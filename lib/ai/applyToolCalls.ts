@@ -41,7 +41,6 @@ export function applyToolCall(actions: DeckActions, call: ValidatedToolCall) {
           subtitle: call.args.slide.subtitle ?? undefined,
           body: call.args.slide.body.map(normalizeBlock),
           layout: normalizeLayout(call.args.slide.layout),
-          speakerNotes: call.args.slide.speakerNotes,
         },
         call.args.index ?? undefined,
       );
@@ -55,8 +54,6 @@ export function applyToolCall(actions: DeckActions, call: ValidatedToolCall) {
         patch.body = call.args.body.map(normalizeBlock);
       if (call.args.layout !== null)
         patch.layout = normalizeLayout(call.args.layout);
-      if (call.args.speakerNotes !== null)
-        patch.speakerNotes = call.args.speakerNotes;
       actions.updateSlide(call.args.id, patch);
       // Select the edited slide so the user sees the change live, even
       // if they were looking at a different slide when it landed.

@@ -14,7 +14,6 @@ describe("normalizeGeneratedDeck", () => {
           subtitle: null,
           body: [],
           layout: null,
-          speakerNotes: "",
         },
         {
           type: "two-column",
@@ -27,7 +26,6 @@ describe("normalizeGeneratedDeck", () => {
             columnTitles: null,
             density: null,
           },
-          speakerNotes: "notes",
         },
       ],
     };
@@ -61,7 +59,6 @@ describe("normalizeGeneratedDeck", () => {
           subtitle: null,
           body: [],
           layout: null,
-          speakerNotes: "",
         },
       ],
     };

@@ -12,7 +12,6 @@ const deck: Deck = {
       title: "Q3 Roadmap",
       subtitle: "Looking ahead",
       body: [],
-      speakerNotes: "",
     },
     {
       id: "slide-b",
@@ -25,14 +24,12 @@ const deck: Deck = {
           text: "A".repeat(200),
         },
       ],
-      speakerNotes: "internal notes should not need to appear",
     },
     {
       id: "slide-c",
       type: "table",
       title: "Data",
       body: [{ type: "table", headers: ["A", "B"], rows: [["1", "2"]] }],
-      speakerNotes: "",
     },
   ],
 };

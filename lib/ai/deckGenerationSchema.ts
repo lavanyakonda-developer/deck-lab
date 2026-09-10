@@ -68,7 +68,6 @@ export const SlideGeneratedSchema = z.object({
   subtitle: z.string().nullable(),
   body: z.array(ContentBlockGeneratedSchema),
   layout: LayoutHintsGeneratedSchema.nullable(),
-  speakerNotes: z.string(),
 });
 
 export const GeneratedDeckSchema = z.object({

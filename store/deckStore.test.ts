@@ -8,9 +8,9 @@ function makeDeck(): Deck {
     id: "deck-1",
     title: "Test Deck",
     slides: [
-      { id: "a", type: "title", title: "First", body: [], speakerNotes: "" },
-      { id: "b", type: "content", title: "Second", body: [], speakerNotes: "" },
-      { id: "c", type: "content", title: "Third", body: [], speakerNotes: "" },
+      { id: "a", type: "title", title: "First", body: [] },
+      { id: "b", type: "content", title: "Second", body: [] },
+      { id: "c", type: "content", title: "Third", body: [] },
     ],
   };
 }
@@ -32,7 +32,6 @@ describe("deckStore", () => {
       type: "content",
       title: "New Slide",
       body: [],
-      speakerNotes: "",
     });
     const state = useDeckStore.getState();
     expect(state.deck.slides).toHaveLength(4);
@@ -43,10 +42,7 @@ describe("deckStore", () => {
   it("addSlide inserts at a specific index", () => {
     const id = useDeckStore
       .getState()
-      .addSlide(
-        { type: "content", title: "Inserted", body: [], speakerNotes: "" },
-        1,
-      );
+      .addSlide({ type: "content", title: "Inserted", body: [] }, 1);
     const state = useDeckStore.getState();
     expect(state.deck.slides.map((slide) => slide.id)).toEqual([
       "a",
@@ -207,7 +203,6 @@ describe("deckStore", () => {
         type: "content",
         title: "AI Added",
         body: [],
-        speakerNotes: "",
       });
       expect(useDeckStore.getState().deck.slides.map((s) => s.id)).toContain(
         id,

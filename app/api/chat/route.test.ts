@@ -22,20 +22,18 @@ const deck: Deck = {
   id: "deck-1",
   title: "Q3 Roadmap",
   slides: [
-    { id: "a", type: "title", title: "Q3 Roadmap", body: [], speakerNotes: "" },
+    { id: "a", type: "title", title: "Q3 Roadmap", body: [] },
     {
       id: "b",
       type: "content",
       title: "Objectives",
       body: [],
-      speakerNotes: "",
     },
     {
       id: "c",
       type: "content",
       title: "Conclusion",
       body: [],
-      speakerNotes: "",
     },
   ],
 };
@@ -166,7 +164,6 @@ describe("POST /api/chat", () => {
       subtitle: null,
       body: [{ type: "table", headers: ["A"], rows: [["1"]], column: null }],
       layout: null,
-      speakerNotes: null,
     };
     mockCreate.mockResolvedValue(
       makeChunkStream([
@@ -221,13 +218,12 @@ describe("POST /api/chat", () => {
       id: "deck-2",
       title: "Coffee",
       slides: [
-        { id: "x", type: "title", title: "Coffee", body: [], speakerNotes: "" },
+        { id: "x", type: "title", title: "Coffee", body: [] },
         {
           id: "y",
           type: "content",
           title: "Origins",
           body: [],
-          speakerNotes: "",
         },
       ],
     };

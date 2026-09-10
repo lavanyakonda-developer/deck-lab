@@ -80,7 +80,6 @@ export const SlideSchema = z.object({
   subtitle: z.string().optional(),
   body: z.array(ContentBlockSchema).default([]),
   layout: LayoutHintsSchema.optional(),
-  speakerNotes: z.string().default(""),
 });
 export type Slide = z.infer<typeof SlideSchema>;
 

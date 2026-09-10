@@ -12,7 +12,6 @@ describe("GeneratedDeckSchema", () => {
           subtitle: "A look ahead",
           body: [],
           layout: null,
-          speakerNotes: "",
         },
         {
           type: "two-column",
@@ -28,7 +27,6 @@ describe("GeneratedDeckSchema", () => {
             columnTitles: ["Left", "Right"],
             density: null,
           },
-          speakerNotes: "notes",
         },
       ],
     });
@@ -45,7 +43,6 @@ describe("GeneratedDeckSchema", () => {
           subtitle: null,
           body: [],
           layout: null,
-          speakerNotes: "",
         },
       ],
     });
@@ -70,7 +67,6 @@ describe("GeneratedDeckSchema", () => {
           subtitle: null,
           body: [{ type: "bullets", items: [], column: null }],
           layout: null,
-          speakerNotes: "",
         },
       ],
     });
@@ -98,7 +94,6 @@ describe("GeneratedDeckSchema", () => {
             },
           ],
           layout: null,
-          speakerNotes: "",
         },
       ],
     });
@@ -123,7 +118,6 @@ describe("GeneratedDeckSchema", () => {
             },
           ],
           layout: null,
-          speakerNotes: "",
         },
       ],
     });
@@ -147,7 +141,6 @@ describe("GeneratedDeckSchema", () => {
             },
           ],
           layout: null,
-          speakerNotes: "",
         },
       ],
     });
@@ -164,7 +157,6 @@ describe("GeneratedDeckSchema", () => {
           subtitle: null,
           body: [{ type: "image", alt: "", caption: null, column: null }],
           layout: null,
-          speakerNotes: "",
         },
       ],
     });

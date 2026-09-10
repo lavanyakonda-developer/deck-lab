@@ -10,7 +10,6 @@ export const seedDeck: Deck = {
       title: "Deck Lab",
       subtitle: "A schema-driven presentation builder",
       body: [],
-      speakerNotes: "Welcome the audience and introduce the topic.",
     },
     {
       id: "slide-2",
@@ -26,7 +25,6 @@ export const seedDeck: Deck = {
           ],
         },
       ],
-      speakerNotes: "",
     },
     {
       id: "slide-3",
@@ -38,7 +36,6 @@ export const seedDeck: Deck = {
           text: "A well-designed schema is the contract between the AI and the UI — every downstream feature depends on it being predictable.",
         },
       ],
-      speakerNotes: "",
     },
     {
       id: "slide-4",
@@ -65,7 +62,6 @@ export const seedDeck: Deck = {
           column: 1,
         },
       ],
-      speakerNotes: "",
     },
     {
       id: "slide-5",
@@ -87,7 +83,6 @@ export const seedDeck: Deck = {
           column: 1,
         },
       ],
-      speakerNotes: "",
     },
     {
       id: "slide-6",
@@ -106,7 +101,6 @@ export const seedDeck: Deck = {
           ],
         },
       ],
-      speakerNotes: "",
     },
   ],
 };

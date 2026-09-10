@@ -53,7 +53,6 @@ export async function generateDeckStreamed(
         subtitle: parsed.data.subtitle ?? undefined,
         body: parsed.data.body.map(normalizeBlock),
         layout: normalizeLayout(parsed.data.layout),
-        speakerNotes: parsed.data.speakerNotes,
       };
       slides.push(slide);
       onSlide(slide);
