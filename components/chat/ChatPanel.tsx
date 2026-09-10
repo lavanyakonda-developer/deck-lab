@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowUp } from "lucide-react";
 import { applyToolCall } from "@/lib/ai/applyToolCalls";
 import {
@@ -44,6 +44,50 @@ export function ChatPanel() {
   const appendToMessage = useChatStore((state) => state.appendToMessage);
   const setMessageContent = useChatStore((state) => state.setMessageContent);
   const setGenerating = useChatStore((state) => state.setGenerating);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  // false once the user scrolls away from the bottom, so a stream in
+  // progress doesn't yank the view back.
+  const shouldAutoScrollRef = useRef(true);
+  const scrollRafRef = useRef<number | null>(null);
+  const NEAR_BOTTOM_PX = 48;
+
+  useEffect(() => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+
+    const handleScroll = () => {
+      const distanceFromBottom =
+        el.scrollHeight - el.scrollTop - el.clientHeight;
+      shouldAutoScrollRef.current = distanceFromBottom < NEAR_BOTTOM_PX;
+    };
+
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Coalesces rapid streaming updates into one scroll per frame.
+  useEffect(() => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+
+    if (scrollRafRef.current !== null) {
+      cancelAnimationFrame(scrollRafRef.current);
+    }
+
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      if (shouldAutoScrollRef.current) {
+        el.scrollTop = el.scrollHeight;
+      }
+    });
+
+    return () => {
+      if (scrollRafRef.current !== null) {
+        cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = null;
+      }
+    };
+  }, [messages, showThinking]);
 
   const sendMessage = async (message: string) => {
     const deck = useDeckStore.getState().deck;
@@ -135,6 +179,7 @@ export function ChatPanel() {
     const prompt = input.trim();
     if (!prompt || isGenerating) return;
 
+    shouldAutoScrollRef.current = true;
     addMessage("user", prompt);
     setInput("");
     setGenerating(true);
@@ -166,7 +211,10 @@ export function ChatPanel() {
         </p>
       </div>
 
-      <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-5">
+      <div
+        ref={messagesContainerRef}
+        className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-5"
+      >
         {messages.length === 0 ? (
           <p className="mx-auto mt-8 max-w-[240px] justify-center text-center text-sm leading-relaxed text-zinc-400 dark:text-zinc-600">
             Try &ldquo;Create a 5-slide deck on javascript&rdquo; to get
