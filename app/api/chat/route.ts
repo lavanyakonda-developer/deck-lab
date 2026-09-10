@@ -17,6 +17,15 @@ const HistoryMessageSchema = z.object({
   content: z.string(),
 });
 
+// Caps how much prior conversation gets resent to OpenAI on every request -
+// the chat UI itself always keeps the full history, this only bounds the
+// outgoing OpenAI request. Keeps token usage/cost from growing unbounded as
+// a session goes on, and limits how many repetitive prior turns (e.g. many
+// "Done — ..." confirmations) can accumulate in-context, which is believed
+// to contribute to the model hallucinating a fake confirmation instead of
+// actually calling a tool in long sessions (see README's Known issues).
+const MAX_HISTORY_MESSAGES = 10;
+
 const SYSTEM_INSTRUCTIONS = `You are the AI behind a presentation deck builder. You have tools to add, update, delete, and reorder slides, to change a slide's layout/type, and to generate a brand new deck from scratch.
 
 Rules:
@@ -31,6 +40,7 @@ Rules:
 - The conversation history below is real - if you previously asked a clarifying question or a confirmation and the user's next message answers it (e.g. a slide number, "yes", "the bullets one"), resolve it using that history and proceed with a tool call. Do not ask the same question again.
 - The "Current deck" section below is always the true, up-to-date state - it already reflects any manual edits the user made directly on the canvas, which you are never told about as a chat message. Never answer a question about a slide's current content (title, text, etc.), or assume what a slide contains, from something you or the user said earlier in this conversation - the deck can change between turns without a chat message announcing it. Always re-check the Current deck section for the current, real content before answering or acting, even if it contradicts what you said in an earlier turn.
 - If the request doesn't name a specific slide (e.g. "change the title to X", "make this more concise", "add a bullet about pricing") but the deck context below marks one slide as "(currently selected/viewed by the user)", do NOT call a tool yet - first ask for confirmation in your normal text response, naming that slide by its number and title and briefly restating the change (e.g. 'Update slide 3 ("Pricing") - set the title to "1234"?'). Only make the tool call once the user's next message confirms (e.g. "yes", "yep", "correct") - use the conversation history above to see that confirmation, per the rule above. If their reply names a different slide or corrects the change instead of confirming, use what they actually said. If no slide is marked as selected and none is named either, ask which slide they mean instead of guessing.
+- The "(currently selected/viewed by the user)" marker is ONLY a fallback for the case above, where the request names no slide at all. It must NEVER override a slide the user explicitly named (by number, title, or clear description) in their message, even when that named slide is different from the one currently selected. Example: if slide 3 is marked selected but the user says "delete slide 10", operate on slide 10 - the selected slide is irrelevant to that request.
 - If the request is ambiguous or could reasonably mean several different things, ask a clarifying question in your normal text response instead of guessing with a tool call.
 - Never claim in your text response that you performed an action - reordered, added, deleted, updated, or changed the layout of a slide - unless you actually called the corresponding tool in this SAME response. Saying "Done" or describing a change without the matching tool call leaves the deck completely unchanged while telling the user otherwise - if a request calls for a change, make the tool call; only describe it as done once you have.
 - Body content blocks: "bullets" and "paragraph" are the default. Use a "table" block for tabular data, a "chart" block (chartType "bar"/"line"/"pie", data as [{label, value}]) for quantitative content the user asks to visualize (e.g. "show this as a chart"), and an "image" block (only "alt" describing what's wanted - you never provide a "url", the actual image is generated afterward via a separate call) when the user explicitly asks for an image/photo/picture.`;
@@ -95,7 +105,9 @@ export async function POST(request: Request) {
   // history is optional (older clients / first-ever call may omit it) -
   // default to no prior turns rather than rejecting the request.
   const historyResult = HistoryMessageSchema.array().safeParse(history ?? []);
-  const priorTurns = historyResult.success ? historyResult.data : [];
+  const priorTurns = (historyResult.success ? historyResult.data : []).slice(
+    -MAX_HISTORY_MESSAGES,
+  );
   const trimmedMessage = message.trim();
   const currentSlideId =
     typeof selectedSlideId === "string" ? selectedSlideId : null;
@@ -122,6 +134,19 @@ export async function POST(request: Request) {
             role: turn.role,
             content: turn.content,
           })),
+          // Placed AFTER history, immediately before the current user
+          // turn - as close to the generation point as possible - since a
+          // rule stated once near the top of a long system prompt loses to
+          // more recent conversation turns that contradict it (e.g. the
+          // model's own reply two turns ago naming a slide that a
+          // since-applied reorder has since moved). Repeating the "trust
+          // fresh data" instruction here, right before generation, counters
+          // that recency bias instead of fighting it.
+          {
+            role: "system" as const,
+            content:
+              "Reminder before you respond: resolve any slide reference in the user's message below - by number, name, \"this slide\", or anything else - using ONLY the Current deck list in the first system message above. Do not use what a slide's number or content was said to be earlier in this conversation, even in your own most recent reply - the deck may have changed since then.",
+          },
           { role: "user" as const, content: trimmedMessage },
         ];
 
@@ -189,7 +214,18 @@ export async function POST(request: Request) {
           }: ${generatedDeck.slides.map((s) => s.title).join(", ")}.`;
           emit("done", { reply, generatedDeck });
         } else {
-          const reply = textContent.trim() || summarizeToolCalls(appliedTools);
+          const trimmedText = textContent.trim();
+          // The model sometimes hallucinates a fake confirmation instead of
+          // actually calling a tool - "Done — " is our own summarizeToolCalls
+          // template prefix, so the model producing it verbatim as plain text
+          // with zero real tool calls is unambiguously this failure, not a
+          // coincidence. Left uncaught, the user sees a false "success"
+          // message while nothing actually changed.
+          const isHallucinatedActionClaim =
+            appliedTools.length === 0 && /^Done\s*—/.test(trimmedText);
+          const reply = isHallucinatedActionClaim
+            ? "I couldn't make this change - could you try rephrasing your request?"
+            : trimmedText || summarizeToolCalls(appliedTools);
           emit("done", { reply });
         }
       } catch (error) {

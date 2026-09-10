@@ -41,7 +41,6 @@ seed example deck already in place.
 - **Only text is directly editable on a slide**: titles, subtitles, bullet
   items, and paragraph text — click any of these on the canvas and type. **Nothing else is manually editable.** Tables, charts, and images have **no**
   manual editing UI at all: No cell editing on tables, No editing a chart's type or its underlying data , No replacing/re-generating an image by clicking it. Any change to a table, chart, or image has to go through chat (e.g. "tur this into a bar chart", "add a row for Q3", "change this image to...")
-- **Context window management** — This Nice to have feature is not developed
 - **Multiple presentation projects** — This Nice to have feature is not developed
 - **The Light/Dark toggle is a _presentation_ theme, not a website theme** —
   don't assume it's a dark-mode switch for the app itself, it only
@@ -80,6 +79,21 @@ seed example deck already in place.
   `applyToolCall` to inspect — a real fix means changing every store
   action's return type and threading that result into the reply, not a
   small patch.
+- **Repeated tool calling in a long session can start to hallucinate** — the
+  model might sometimes reply with a fake confirmation without actually calling the corresponding tool, so nothing
+  in the deck changes despite the "success" message. This shows up after
+  several tool-calling turns in the same conversation, not on the first
+  message of a session or in a fresh conversation — likely because the full
+  chat history (including prior "Done — ..." replies) is resent to OpenAI on
+  every request, and enough repetitive turns in that history bias the model
+  toward pattern-completing the same reply shape instead of genuinely
+  deciding whether to call a tool. `app/api/chat/route.ts` detects this
+  specific pattern (a "Done — " reply with zero real tool calls) and
+  overrides it with an honest failure message instead of a false success, so
+  the user isn't silently misled but the requested change still doesn't
+  happen and has to be retried. Mitigated (not eliminated) by the history
+  cap below - repeated turns still accumulate within the capped window, just
+  bounded rather than unbounded.
 - **`generate_deck` combined with other tool calls in one turn can silently
   discard them** — any `update_slide`/`add_slide`
   applied earlier in that turn along with generate is wiped out when the generated deck's
@@ -159,8 +173,13 @@ lib/
 
 **Chat / AI editing** — every chat message (the first one included) goes to
 `POST /api/chat` with the current message, the full deck, prior chat history,
-and the currently-selected slide id. The server builds a compact text summary
-of the deck (not the full JSON) and asks OpenAI, with 6 available tools
+and the currently-selected slide id. The chat UI itself keeps the complete
+history, but the server caps how much of it gets resent to OpenAI per
+request (last 10 messages, oldest dropped first - `MAX_HISTORY_MESSAGES` in
+`app/api/chat/route.ts`), to bound token cost and limit how many repetitive
+prior turns accumulate in-context as a session grows. The server builds a
+compact text summary of the deck (not the full JSON) and asks OpenAI, with 6
+available tools
 (`generate_deck` for a wholesale new deck, plus `add_slide`/`update_slide`/
 `delete_slide`/`reorder_slides`/`change_layout` for targeted edits) — the
 model decides which apply. The response streams back over Server-Sent Events

@@ -206,6 +206,48 @@ describe("POST /api/chat", () => {
     });
   });
 
+  it("overrides a hallucinated 'Done — ...' text reply with an honest message when no tool was actually called", async () => {
+    mockCreate.mockResolvedValue(
+      makeChunkStream(textDeltas("Done — reordered the slides.")),
+    );
+
+    const response = await POST(
+      makeRequest({ message: "move slide 8 to 1", deck }),
+    );
+    const events = await readSSE(response);
+
+    // The raw hallucinated text still streams live (unchanged UX)...
+    const textEvents = events.filter((e) => e.event === "text-delta");
+    expect(
+      textEvents.map((e) => (e.data as { text: string }).text).join(""),
+    ).toBe("Done — reordered the slides.");
+    // ...but the final reply the client displays is corrected, not the lie.
+    expect(events.at(-1)).toEqual({
+      event: "done",
+      data: {
+        reply:
+          "I couldn't make this change - could you try rephrasing your request?",
+      },
+    });
+    expect(events.filter((e) => e.event === "tool-call")).toHaveLength(0);
+  });
+
+  it("does not override a real tool-call-backed 'Done — ...' summary", async () => {
+    mockCreate.mockResolvedValue(
+      makeChunkStream(toolCallDeltas(0, "delete_slide", { id: "b" })),
+    );
+
+    const response = await POST(
+      makeRequest({ message: "delete slide 2", deck }),
+    );
+    const events = await readSSE(response);
+
+    expect(events.at(-1)).toEqual({
+      event: "done",
+      data: { reply: "Done — deleted a slide." },
+    });
+  });
+
   it("intercepts generate_deck and streams slide events, then done with generatedDeck", async () => {
     mockCreate.mockResolvedValue(
       makeChunkStream(
@@ -273,11 +315,49 @@ describe("POST /api/chat", () => {
       expect.objectContaining({ role: "system" }),
       { role: "user", content: "can you change it to table" },
       { role: "assistant", content: "Which slide?" },
+      expect.objectContaining({ role: "system" }), // recency-bias reminder
       { role: "user", content: "3rd slide" },
     ]);
     const systemMessage = callArgs.messages[0];
     expect(systemMessage.content).toContain('id="b"');
     expect(systemMessage.content).toContain("Objectives");
+  });
+
+  it("caps prior history to the most recent messages, dropping the oldest first", async () => {
+    mockCreate.mockResolvedValue(makeChunkStream([]));
+    const HISTORY_LENGTH = 30;
+    const longHistory = Array.from({ length: HISTORY_LENGTH }, (_, i) => ({
+      role: i % 2 === 0 ? ("user" as const) : ("assistant" as const),
+      content: `turn ${i}`,
+    }));
+
+    await POST(
+      makeRequest({ message: "latest message", deck, history: longHistory }),
+    );
+
+    const callArgs = mockCreate.mock.calls[0][0];
+    // system + N most recent history turns + the reminder system message +
+    // the current message - N (MAX_HISTORY_MESSAGES) is intentionally not
+    // hardcoded here, so tuning that constant doesn't break this test; it's
+    // derived from how many trailing history messages actually made it in.
+    const historyMessagesSent = callArgs.messages.length - 1 - 1 - 1;
+    expect(historyMessagesSent).toBeGreaterThan(0);
+    expect(historyMessagesSent).toBeLessThan(HISTORY_LENGTH);
+    expect(callArgs.messages[1]).toEqual({
+      role: "user",
+      content: `turn ${HISTORY_LENGTH - historyMessagesSent}`,
+    });
+    expect(callArgs.messages.at(-3)).toEqual({
+      role: "assistant",
+      content: `turn ${HISTORY_LENGTH - 1}`,
+    });
+    expect(callArgs.messages.at(-2)).toEqual(
+      expect.objectContaining({ role: "system" }),
+    );
+    expect(callArgs.messages.at(-1)).toEqual({
+      role: "user",
+      content: "latest message",
+    });
   });
 
   it("marks the currently selected slide in the deck context so the model can identify it", async () => {

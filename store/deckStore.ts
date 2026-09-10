@@ -142,13 +142,6 @@ function buildDeckStore() {
 
         reorderSlides: (orderedIds) =>
           set((state) => {
-            const currentIds = state.deck.slides.map((slide) => slide.id);
-            const isSamePermutation =
-              orderedIds.length === currentIds.length &&
-              currentIds.every((id) => orderedIds.includes(id));
-            if (!isSamePermutation) {
-              return state;
-            }
             const byId = new Map(
               state.deck.slides.map((slide) => [slide.id, slide]),
             );

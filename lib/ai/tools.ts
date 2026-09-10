@@ -224,7 +224,7 @@ const reorderSlidesTool = {
   function: {
     name: "reorder_slides",
     description: `
-Reorder slides in the deck when the user asks to change the ORDER or POSITION of slides.
+      Reorder slides in the deck when the user asks to change the ORDER or POSITION of slides.
 
 ALWAYS call this tool for requests such as:
 - "swap slide 2 and slide 3"

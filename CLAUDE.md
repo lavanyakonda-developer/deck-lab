@@ -562,6 +562,21 @@ SlideThemeTokens` prop and applies colors via inline `style`, not
     operator from the theme's hex (confirmed empirically against a real
     generated file first, not guessed) and asserts it's present in the
     raw PDF bytes, plus a light-vs-dark byte-diff sanity check.
+- **Context window management** (Phase 10, N3): `app/api/chat/route.ts`
+  caps `priorTurns` to the last `MAX_HISTORY_MESSAGES` (20) before building
+  the OpenAI request - `.slice(-MAX_HISTORY_MESSAGES)`, oldest dropped
+  first. Deliberately a simple sliding-window trim, not summarization - N3's
+  requirement text allows either, and summarization would need an extra
+  LLM call for questionable benefit at this app's scale. Scoped to the
+  _outgoing OpenAI request only_ - `chatStore.ts`'s persisted message list
+  is never trimmed, so the chat UI always shows full history regardless of
+  what gets sent upstream. Motivated by more than token cost: real evidence
+  this session (see README's "Repeated tool calling ... can start to
+  hallucinate") showed the model increasingly pattern-completing a fake
+  "Done — ..." confirmation instead of calling a tool as a session's chat
+  history accumulated many repetitive prior turns - capping bounds how much
+  of that repetition can accumulate in-context, though it doesn't eliminate
+  the risk within the capped window itself.
 - **Deployment**: Vercel.
 
 ### Current Slide Schema Shape (`lib/schema/slide.ts`)
@@ -600,21 +615,21 @@ manual testing checklist, automated verification, DoD) lives in
 `phases.txt` — treat that as the authoritative per-phase spec. This table is
 the status tracker.
 
-| Phase | Name                                                              | Status                                                                                                                        |
-| ----- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| 0     | Project Scaffolding & Shell UI                                    | ✅ Done — committed `chore: scaffold Next.js app with two-pane shell UI`, pushed to `origin/main`                             |
-| 1     | Slide Schema & Deck State Model                                   | ✅ Done — committed `feat: add slide schema and deck state model`, pushed to `origin/main`                                    |
-| 2     | Manual Editing (Complete, AI-Free Product)                        | ✅ Done — 6 commits (creation/deletion/reordering/text-editing/SSR fix/persistence), reviewed and manually tested by the user |
-| 3     | AI Initial Generation (two-phase gen, phase 1)                    | ✅ Done — committed, not yet pushed; verified end-to-end against the live OpenAI API                                          |
-| 4     | Agentic Tool-Use & Diff-Based Refinement (two-phase gen, phase 2) | ✅ Done — committed, not yet pushed; verified end-to-end against the live OpenAI API                                          |
-| 5     | Streaming                                                         | ✅ Done — committed, not yet pushed; verified end-to-end against the live OpenAI API                                          |
-| 6     | Rich Content: Images, Charts, Tables                              | ✅ Done — uncommitted (user commits themselves); verified end-to-end against the live OpenAI API                              |
-| 7     | Export                                                            | ✅ Done — committed by the user; direct-download PDF + PPTX, no print dialog                                                  |
-| 8     | Unified Undo/Redo (Nice to Have)                                  | ✅ Done — uncommitted; unit tested, not yet manually verified live                                                            |
-| 9     | Themes / Templates (Nice to Have)                                 | ✅ Done — uncommitted; light/dark slide-content theme, verified in exports, not yet manually verified live                    |
-| 10    | Context Window Management (Nice to Have)                          | Not started                                                                                                                   |
-| 11    | Multiple Presentation Projects (Nice to Have)                     | Not started                                                                                                                   |
-| 12    | Deployment, README, and Final Polish                              | Not started                                                                                                                   |
+| Phase | Name                                                              | Status                                                                                                                                   |
+| ----- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | Project Scaffolding & Shell UI                                    | ✅ Done — committed `chore: scaffold Next.js app with two-pane shell UI`, pushed to `origin/main`                                        |
+| 1     | Slide Schema & Deck State Model                                   | ✅ Done — committed `feat: add slide schema and deck state model`, pushed to `origin/main`                                               |
+| 2     | Manual Editing (Complete, AI-Free Product)                        | ✅ Done — 6 commits (creation/deletion/reordering/text-editing/SSR fix/persistence), reviewed and manually tested by the user            |
+| 3     | AI Initial Generation (two-phase gen, phase 1)                    | ✅ Done — committed, not yet pushed; verified end-to-end against the live OpenAI API                                                     |
+| 4     | Agentic Tool-Use & Diff-Based Refinement (two-phase gen, phase 2) | ✅ Done — committed, not yet pushed; verified end-to-end against the live OpenAI API                                                     |
+| 5     | Streaming                                                         | ✅ Done — committed, not yet pushed; verified end-to-end against the live OpenAI API                                                     |
+| 6     | Rich Content: Images, Charts, Tables                              | ✅ Done — uncommitted (user commits themselves); verified end-to-end against the live OpenAI API                                         |
+| 7     | Export                                                            | ✅ Done — committed by the user; direct-download PDF + PPTX, no print dialog                                                             |
+| 8     | Unified Undo/Redo (Nice to Have)                                  | ✅ Done — uncommitted; unit tested, not yet manually verified live                                                                       |
+| 9     | Themes / Templates (Nice to Have)                                 | ✅ Done — uncommitted; light/dark slide-content theme, verified in exports, not yet manually verified live                               |
+| 10    | Context Window Management (Nice to Have)                          | ✅ Done — uncommitted; server-side cap on prior history resent to OpenAI (last 20 messages), unit tested, not yet manually verified live |
+| 11    | Multiple Presentation Projects (Nice to Have)                     | Not started                                                                                                                              |
+| 12    | Deployment, README, and Final Polish                              | Not started                                                                                                                              |
 
 Must-Haves = Phases 0–7 (fallback submission point if time runs out).
 Nice-to-Haves = Phases 8–11 (additive, droppable individually).
