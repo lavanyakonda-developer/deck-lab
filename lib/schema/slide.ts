@@ -33,7 +33,6 @@ export const TableBlockSchema = z.object({
 });
 
 export const ChartTypeSchema = z.enum(["bar", "line", "pie"]);
-export type ChartType = z.infer<typeof ChartTypeSchema>;
 
 export const ChartBlockSchema = z.object({
   type: z.literal("chart"),
@@ -66,10 +65,7 @@ export const ContentBlockSchema = z.discriminatedUnion("type", [
 export type ContentBlock = z.infer<typeof ContentBlockSchema>;
 
 export const LayoutHintsSchema = z.object({
-  align: z.enum(["left", "center", "right"]).optional(),
-  columns: z.number().int().min(1).max(2).optional(),
   columnTitles: z.array(z.string()).max(2).optional(),
-  density: z.enum(["compact", "comfortable", "spacious"]).optional(),
 });
 export type LayoutHints = z.infer<typeof LayoutHintsSchema>;
 

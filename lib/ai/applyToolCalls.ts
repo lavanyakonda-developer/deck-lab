@@ -78,12 +78,3 @@ export function applyToolCall(actions: DeckActions, call: ValidatedToolCall) {
       return;
   }
 }
-
-export function applyToolCalls(
-  actions: DeckActions,
-  calls: ValidatedToolCall[],
-) {
-  for (const call of calls) {
-    applyToolCall(actions, call);
-  }
-}

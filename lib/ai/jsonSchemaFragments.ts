@@ -91,18 +91,9 @@ export const layoutHintsJsonSchema = {
   type: ["object", "null"],
   additionalProperties: false,
   properties: {
-    align: {
-      type: ["string", "null"],
-      enum: ["left", "center", "right", null],
-    },
-    columns: { type: ["integer", "null"], enum: [1, 2, null] },
     columnTitles: { type: ["array", "null"], items: { type: "string" } },
-    density: {
-      type: ["string", "null"],
-      enum: ["compact", "comfortable", "spacious", null],
-    },
   },
-  required: ["align", "columns", "columnTitles", "density"],
+  required: ["columnTitles"],
 };
 
 // A full slide's properties, minus "id" (assigned server/store-side, never

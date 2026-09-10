@@ -14,7 +14,6 @@
 export type SlideThemeName = "light" | "dark";
 
 export interface SlideThemeTokens {
-  name: SlideThemeName;
   label: string;
   background: string;
   foreground: string;
@@ -27,7 +26,6 @@ export interface SlideThemeTokens {
 
 export const SLIDE_THEMES: Record<SlideThemeName, SlideThemeTokens> = {
   light: {
-    name: "light",
     label: "Light",
     background: "#ffffff",
     foreground: "#18181b", // zinc-900
@@ -45,7 +43,6 @@ export const SLIDE_THEMES: Record<SlideThemeName, SlideThemeTokens> = {
     ],
   },
   dark: {
-    name: "dark",
     label: "Dark",
     background: "#09090b", // zinc-950
     foreground: "#fafafa", // zinc-50

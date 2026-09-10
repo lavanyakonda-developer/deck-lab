@@ -22,10 +22,7 @@ describe("GeneratedDeckSchema", () => {
             { type: "paragraph", text: "hello", column: 1 },
           ],
           layout: {
-            align: null,
-            columns: 2,
             columnTitles: ["Left", "Right"],
-            density: null,
           },
         },
       ],

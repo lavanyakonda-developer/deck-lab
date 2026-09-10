@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyToolCall, applyToolCalls } from "./applyToolCalls";
+import { applyToolCall } from "./applyToolCalls";
 import type { ValidatedToolCall } from "./tools";
 
 function makeActions() {
@@ -150,30 +150,5 @@ describe("applyToolCall", () => {
       },
     });
     expect(actions.selectSlide).not.toHaveBeenCalled();
-  });
-});
-
-describe("applyToolCalls", () => {
-  it("applies multiple tool calls in order and touches only the targeted actions", () => {
-    const actions = makeActions();
-    applyToolCalls(actions, [
-      {
-        tool: "update_slide",
-        args: {
-          id: "a",
-          title: "X",
-          subtitle: null,
-          body: null,
-          layout: null,
-        },
-      },
-      { tool: "delete_slide", args: { id: "b" } },
-    ]);
-
-    expect(actions.updateSlide).toHaveBeenCalledTimes(1);
-    expect(actions.deleteSlide).toHaveBeenCalledTimes(1);
-    expect(actions.addSlide).not.toHaveBeenCalled();
-    expect(actions.reorderSlides).not.toHaveBeenCalled();
-    expect(actions.changeLayout).not.toHaveBeenCalled();
   });
 });

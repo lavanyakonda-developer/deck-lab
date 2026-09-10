@@ -83,32 +83,20 @@ describe("normalizeLayout", () => {
   it("converts every null field to undefined", () => {
     expect(
       normalizeLayout({
-        align: null,
-        columns: null,
         columnTitles: null,
-        density: null,
       }),
     ).toEqual({
-      align: undefined,
-      columns: undefined,
       columnTitles: undefined,
-      density: undefined,
     });
   });
 
   it("preserves real values", () => {
     expect(
       normalizeLayout({
-        align: "left",
-        columns: 2,
         columnTitles: ["A", "B"],
-        density: "compact",
       }),
     ).toEqual({
-      align: "left",
-      columns: 2,
       columnTitles: ["A", "B"],
-      density: "compact",
     });
   });
 });

@@ -114,14 +114,13 @@ describe("deckStore", () => {
   it("changeLayout updates type and merges layout hints incrementally", () => {
     useDeckStore
       .getState()
-      .changeLayout("b", { type: "two-column", layout: { columns: 2 } });
+      .changeLayout("b", { type: "two-column", layout: { columnTitles: ["Left"] } });
     useDeckStore
       .getState()
       .changeLayout("b", { layout: { columnTitles: ["Left", "Right"] } });
     const slide = useDeckStore.getState().deck.slides.find((s) => s.id === "b");
     expect(slide?.type).toBe("two-column");
     expect(slide?.layout).toEqual({
-      columns: 2,
       columnTitles: ["Left", "Right"],
     });
   });

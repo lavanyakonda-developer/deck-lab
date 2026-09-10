@@ -21,10 +21,7 @@ describe("normalizeGeneratedDeck", () => {
           subtitle: null,
           body: [{ type: "bullets", items: ["a", "b"], column: 0 }],
           layout: {
-            align: "left",
-            columns: 2,
-            columnTitles: null,
-            density: null,
+            columnTitles: ["Left", "Right"],
           },
         },
       ],
@@ -43,7 +40,7 @@ describe("normalizeGeneratedDeck", () => {
       items: ["a", "b"],
       column: 0,
     });
-    expect(deck.slides[1].layout).toEqual({ align: "left", columns: 2 });
+    expect(deck.slides[1].layout).toEqual({ columnTitles: ["Left", "Right"] });
 
     const validation = DeckSchema.safeParse(deck);
     expect(validation.success).toBe(true);

@@ -18,7 +18,7 @@ import {
 const GenerateDeckArgsSchema = z.object({
   prompt: z.string().min(1),
 });
-export type GenerateDeckArgs = z.infer<typeof GenerateDeckArgsSchema>;
+type GenerateDeckArgs = z.infer<typeof GenerateDeckArgsSchema>;
 
 const generateDeckTool = {
   type: "function" as const,
@@ -44,7 +44,7 @@ const AddSlideArgsSchema = z.object({
   slide: SlideGeneratedSchema,
   index: z.number().int().min(0).nullable(),
 });
-export type AddSlideArgs = z.infer<typeof AddSlideArgsSchema>;
+type AddSlideArgs = z.infer<typeof AddSlideArgsSchema>;
 
 const addSlideTool = {
   type: "function" as const,
@@ -79,7 +79,7 @@ const UpdateSlideArgsSchema = z.object({
   body: z.array(ContentBlockGeneratedSchema).nullable(),
   layout: LayoutHintsGeneratedSchema.nullable(),
 });
-export type UpdateSlideArgs = z.infer<typeof UpdateSlideArgsSchema>;
+type UpdateSlideArgs = z.infer<typeof UpdateSlideArgsSchema>;
 
 const updateSlideTool = {
   type: "function" as const,
@@ -111,7 +111,7 @@ const updateSlideTool = {
 const DeleteSlideArgsSchema = z.object({
   id: z.string().min(1),
 });
-export type DeleteSlideArgs = z.infer<typeof DeleteSlideArgsSchema>;
+type DeleteSlideArgs = z.infer<typeof DeleteSlideArgsSchema>;
 
 const deleteSlideTool = {
   type: "function" as const,
@@ -134,7 +134,7 @@ const deleteSlideTool = {
 const ReorderSlidesArgsSchema = z.object({
   orderedIds: z.array(z.string().min(1)).min(1),
 });
-export type ReorderSlidesArgs = z.infer<typeof ReorderSlidesArgsSchema>;
+type ReorderSlidesArgs = z.infer<typeof ReorderSlidesArgsSchema>;
 
 const reorderSlidesTool = {
   type: "function" as const,
@@ -161,7 +161,7 @@ const ChangeLayoutArgsSchema = z.object({
   type: SlideTypeSchema.nullable(),
   layout: LayoutHintsGeneratedSchema.nullable(),
 });
-export type ChangeLayoutArgs = z.infer<typeof ChangeLayoutArgsSchema>;
+type ChangeLayoutArgs = z.infer<typeof ChangeLayoutArgsSchema>;
 
 const changeLayoutTool = {
   type: "function" as const,

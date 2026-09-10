@@ -56,10 +56,7 @@ export const ContentBlockGeneratedSchema = z.discriminatedUnion("type", [
 ]);
 
 export const LayoutHintsGeneratedSchema = z.object({
-  align: z.enum(["left", "center", "right"]).nullable(),
-  columns: z.number().int().min(1).max(2).nullable(),
   columnTitles: z.array(z.string()).max(2).nullable(),
-  density: z.enum(["compact", "comfortable", "spacious"]).nullable(),
 });
 
 export const SlideGeneratedSchema = z.object({

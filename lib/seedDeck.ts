@@ -41,7 +41,7 @@ export const seedDeck: Deck = {
       id: "slide-4",
       type: "two-column",
       title: "Manual vs. AI-Driven Edits",
-      layout: { columns: 2, columnTitles: ["Manual", "AI-Driven"] },
+      layout: { columnTitles: ["Manual", "AI-Driven"] },
       body: [
         {
           type: "bullets",
@@ -68,7 +68,6 @@ export const seedDeck: Deck = {
       type: "comparison",
       title: "Full Regeneration vs. Targeted Patches",
       layout: {
-        columns: 2,
         columnTitles: ["Full Regeneration", "Targeted Patch"],
       },
       body: [

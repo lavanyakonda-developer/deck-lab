@@ -31,10 +31,7 @@ export function normalizeBlock(block: {
 }
 
 type GeneratedLayout = {
-  align: "left" | "center" | "right" | null;
-  columns: number | null;
   columnTitles: string[] | null;
-  density: "compact" | "comfortable" | "spacious" | null;
 } | null;
 
 export function normalizeLayout(
@@ -42,9 +39,6 @@ export function normalizeLayout(
 ): LayoutHints | undefined {
   if (!layout) return undefined;
   return {
-    align: layout.align ?? undefined,
-    columns: layout.columns ?? undefined,
     columnTitles: layout.columnTitles ?? undefined,
-    density: layout.density ?? undefined,
   };
 }
