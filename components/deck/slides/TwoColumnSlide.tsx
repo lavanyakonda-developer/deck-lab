@@ -23,7 +23,16 @@ export function TwoColumnSlide({
   const indexed = slide.body.map((block, index) => ({ block, index }));
   const left = indexed.filter(({ block }) => (block.column ?? 0) === 0);
   const right = indexed.filter(({ block }) => (block.column ?? 0) === 1);
-  const [leftTitle, rightTitle] = slide.layout?.columnTitles ?? [];
+  const leftTitle = slide.layout?.columnTitles?.[0] ?? "";
+  const rightTitle = slide.layout?.columnTitles?.[1] ?? "";
+
+  const updateColumnTitle = (index: 0 | 1) => (next: string) => {
+    const titles = [leftTitle, rightTitle];
+    titles[index] = next;
+    updateSlide(slide.id, {
+      layout: { ...slide.layout, columnTitles: titles },
+    });
+  };
 
   return (
     <div className="flex h-full flex-col gap-6 px-12 py-10">
@@ -37,14 +46,14 @@ export function TwoColumnSlide({
       />
       <div className="grid flex-1 grid-cols-2 gap-8">
         <div className="flex flex-col gap-3">
-          {leftTitle && (
-            <h3
-              className="text-sm font-semibold tracking-wide uppercase"
-              style={{ color: theme.muted }}
-            >
-              {leftTitle}
-            </h3>
-          )}
+          <InlineEditable
+            value={leftTitle}
+            onCommit={updateColumnTitle(0)}
+            placeholder="Column title (optional)"
+            ariaLabel="Left column title"
+            className="text-sm font-semibold tracking-wide uppercase"
+            style={{ color: theme.muted }}
+          />
           {left.map(({ block, index }) => (
             <EditableContentBlock
               key={index}
@@ -55,14 +64,14 @@ export function TwoColumnSlide({
           ))}
         </div>
         <div className="flex flex-col gap-3">
-          {rightTitle && (
-            <h3
-              className="text-sm font-semibold tracking-wide uppercase"
-              style={{ color: theme.muted }}
-            >
-              {rightTitle}
-            </h3>
-          )}
+          <InlineEditable
+            value={rightTitle}
+            onCommit={updateColumnTitle(1)}
+            placeholder="Column title (optional)"
+            ariaLabel="Right column title"
+            className="text-sm font-semibold tracking-wide uppercase"
+            style={{ color: theme.muted }}
+          />
           {right.map(({ block, index }) => (
             <EditableContentBlock
               key={index}

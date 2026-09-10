@@ -112,9 +112,10 @@ describe("deckStore", () => {
   });
 
   it("changeLayout updates type and merges layout hints incrementally", () => {
-    useDeckStore
-      .getState()
-      .changeLayout("b", { type: "two-column", layout: { columnTitles: ["Left"] } });
+    useDeckStore.getState().changeLayout("b", {
+      type: "two-column",
+      layout: { columnTitles: ["Left"] },
+    });
     useDeckStore
       .getState()
       .changeLayout("b", { layout: { columnTitles: ["Left", "Right"] } });
