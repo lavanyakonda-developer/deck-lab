@@ -1,9 +1,5 @@
-// Wraps localStorage for zustand's persist middleware so a burst of set()
-// calls (e.g. one per streamed SSE chunk in ChatPanel.tsx) coalesces into a
-// single write instead of a synchronous JSON.stringify + setItem per call.
-// getItem/removeItem stay synchronous passthroughs - only writes are
-// debounced, and pendingValue always holds the latest value so a delayed
-// write is never stale.
+// Coalesces bursty writes (e.g. streamed SSE chunks) into one localStorage
+// write per delay window instead of one per call.
 export function createDebouncedStorage(delayMs = 150) {
   let pendingValue: string | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;

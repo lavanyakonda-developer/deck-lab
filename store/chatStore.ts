@@ -18,44 +18,56 @@ interface ChatState {
   setGenerating: (value: boolean) => void;
 }
 
-export const useChatStore = create<ChatState>()(
-  persist(
-    (set) => ({
-      messages: [],
-      isGenerating: false,
+// Cached on globalThis so Fast Refresh reuses this store instead of
+// recreating it empty on every edit to this file (see deckStore.ts).
+function buildChatStore() {
+  return create<ChatState>()(
+    persist(
+      (set) => ({
+        messages: [],
+        isGenerating: false,
 
-      addMessage: (role, content) => {
-        const id = createId("msg");
-        set((state) => ({
-          messages: [...state.messages, { id, role, content }],
-        }));
-        return id;
+        addMessage: (role, content) => {
+          const id = createId("msg");
+          set((state) => ({
+            messages: [...state.messages, { id, role, content }],
+          }));
+          return id;
+        },
+
+        appendToMessage: (id, delta) =>
+          set((state) => ({
+            messages: state.messages.map((message) =>
+              message.id === id
+                ? { ...message, content: message.content + delta }
+                : message,
+            ),
+          })),
+
+        setMessageContent: (id, content) =>
+          set((state) => ({
+            messages: state.messages.map((message) =>
+              message.id === id ? { ...message, content } : message,
+            ),
+          })),
+
+        setGenerating: (value) => set({ isGenerating: value }),
+      }),
+      {
+        name: "deck-lab:chat",
+        storage: createJSONStorage(() => createDebouncedStorage()),
+        skipHydration: true,
+        // isGenerating is ephemeral request state, never restore it as true.
+        partialize: (state) => ({ messages: state.messages }),
       },
+    ),
+  );
+}
 
-      appendToMessage: (id, delta) =>
-        set((state) => ({
-          messages: state.messages.map((message) =>
-            message.id === id
-              ? { ...message, content: message.content + delta }
-              : message,
-          ),
-        })),
+declare global {
+  var __deckLabChatStore: ReturnType<typeof buildChatStore> | undefined;
+}
 
-      setMessageContent: (id, content) =>
-        set((state) => ({
-          messages: state.messages.map((message) =>
-            message.id === id ? { ...message, content } : message,
-          ),
-        })),
-
-      setGenerating: (value) => set({ isGenerating: value }),
-    }),
-    {
-      name: "deck-lab:chat",
-      storage: createJSONStorage(() => createDebouncedStorage()),
-      skipHydration: true,
-      // isGenerating is ephemeral request state, never restore it as true.
-      partialize: (state) => ({ messages: state.messages }),
-    },
-  ),
-);
+export const useChatStore =
+  globalThis.__deckLabChatStore ??
+  (globalThis.__deckLabChatStore = buildChatStore());
