@@ -2,11 +2,9 @@
 
 An AI-powered presentation builder describe a deck in chat, watch it get
 built slide by slide, refine it conversationally, edit text by hand, and
-export to PDF or PPTX. Built for the Sarvam AI technical assignment.
+export to PDF or PPTX.
 
-#### Deployed on - https://deck-lab-vert.vercel.app/
-
-#### claude transcript - https://github.com/lavanyakonda-developer/deck-lab/blob/main/AI%20Session%20Transcript%201.pdf
+**Deployed on** - https://deck-lab-vert.vercel.app/
 
 ## Setup
 
