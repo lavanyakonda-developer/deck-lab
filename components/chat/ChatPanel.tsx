@@ -37,7 +37,10 @@ function triggerPendingImageGeneration(triggered: Set<string>) {
 
 export function ChatPanel() {
   const [input, setInput] = useState("");
-  const [showThinking, setShowThinking] = useState(false);
+  // Status bubble shown while a request is in flight but no assistant
+  // text has arrived yet - "Thinking…" up front, then a slide count while
+  // generate_deck streams slides (which produce no chat text until done).
+  const [loadingLabel, setLoadingLabel] = useState<string | null>(null);
   const messages = useChatStore((state) => state.messages);
   const isGenerating = useChatStore((state) => state.isGenerating);
   const addMessage = useChatStore((state) => state.addMessage);
@@ -87,7 +90,7 @@ export function ChatPanel() {
         scrollRafRef.current = null;
       }
     };
-  }, [messages, showThinking]);
+  }, [messages, loadingLabel]);
 
   const sendMessage = async (message: string) => {
     const deck = useDeckStore.getState().deck;
@@ -114,13 +117,13 @@ export function ChatPanel() {
 
     let assistantMessageId: string | null = null;
     let deckCleared = false;
+    let streamedSlideCount = 0;
     const triggeredImages = new Set<string>();
 
     for await (const evt of parseSSEStream(response)) {
-      setShowThinking(false);
-
       switch (evt.event) {
         case "text-delta": {
+          setLoadingLabel(null);
           const { text } = evt.data as { text: string };
           if (assistantMessageId === null) {
             assistantMessageId = addMessage("assistant", "");
@@ -130,6 +133,7 @@ export function ChatPanel() {
         }
 
         case "tool-call": {
+          setLoadingLabel(null);
           applyToolCall(useDeckStore.getState(), evt.data as ValidatedToolCall);
           break;
         }
@@ -144,10 +148,13 @@ export function ChatPanel() {
             deckCleared = true;
           }
           useDeckStore.getState().addSlide(evt.data as Slide);
+          streamedSlideCount += 1;
+          setLoadingLabel(`Generating slides… (${streamedSlideCount} so far)`);
           break;
         }
 
         case "done": {
+          setLoadingLabel(null);
           const { reply, generatedDeck } = evt.data as {
             reply: string;
             generatedDeck?: Deck;
@@ -183,7 +190,7 @@ export function ChatPanel() {
     addMessage("user", prompt);
     setInput("");
     setGenerating(true);
-    setShowThinking(true);
+    setLoadingLabel("Thinking…");
 
     try {
       await sendMessage(prompt);
@@ -196,7 +203,7 @@ export function ChatPanel() {
       );
     } finally {
       setGenerating(false);
-      setShowThinking(false);
+      setLoadingLabel(null);
     }
   };
 
@@ -234,9 +241,9 @@ export function ChatPanel() {
             </div>
           ))
         )}
-        {showThinking && (
-          <div className="self-start rounded-xl bg-zinc-100 px-3.5 py-2.5 text-sm text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
-            Thinking…
+        {loadingLabel && (
+          <div className="self-start animate-pulse rounded-xl bg-zinc-100 px-3.5 py-2.5 text-sm text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
+            {loadingLabel}
           </div>
         )}
       </div>
