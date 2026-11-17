@@ -47,7 +47,7 @@ PowerPoint file in one click.
 ### 🧰 Productivity
 
 - **Unified undo / redo** across both AI and manual changes (`⌘Z` / `⌘⇧Z`).
-- **Light and dark slide themes**, carried through to exports.
+- **Five slide themes** (Classic Light, Midnight, Corporate Blue, Warm Sand, Forest), picked from a dropdown and carried through to exports.
 - **One-click export** to **PDF** and **PPTX**, with charts redrawn as native
   vector graphics (not screenshots).
 - **Auto-save** — your deck and chat history persist across page reloads.
@@ -62,7 +62,7 @@ PowerPoint file in one click.
 | **Framework**   | Next.js 16 (App Router, Route Handlers), React 19                       |
 | **Styling**     | Tailwind CSS v4,                                                        |
 | **State**       | Zustand (with `persist` middleware + custom undo/redo history)          |
-| **AI**          | OpenAI API — GPT-4o (structured outputs, function calling), gpt-image-1 |
+| **AI**          | OpenAI API — GPT-4o (structured outputs, function calling), gpt-image-2 |
 | **Validation**  | Zod, JSON Schema                                                        |
 | **Streaming**   | Server-Sent Events (SSE), custom incremental JSON parser                |
 | **Charts**      | Recharts                                                                |
@@ -117,6 +117,7 @@ Create a `.env.local` file:
 ```bash
 OPENAI_API_KEY=sk-...   # required
 OPENAI_MODEL=gpt-4o     # optional (default)
+OPENAI_IMAGE_MODEL=gpt-image-2  # optional (default)
 ```
 
 Start the app:

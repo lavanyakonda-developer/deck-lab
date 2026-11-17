@@ -32,11 +32,21 @@ describe("POST /api/generate-image", () => {
     expect(body.url).toBe("data:image/jpeg;base64,abc123");
     expect(mockGenerate).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: "gpt-image-1",
+        model: "gpt-image-2",
         prompt: "A modern office",
         output_format: "jpeg",
       }),
     );
+  });
+
+  it("uses OPENAI_IMAGE_MODEL when set", async () => {
+    vi.stubEnv("OPENAI_IMAGE_MODEL", "gpt-image-1-mini");
+    mockGenerate.mockResolvedValue({ data: [{ b64_json: "abc123" }] });
+    await POST(makeRequest({ prompt: "A modern office" }));
+    expect(mockGenerate).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gpt-image-1-mini" }),
+    );
+    vi.unstubAllEnvs();
   });
 
   it("trims the prompt before passing it along", async () => {

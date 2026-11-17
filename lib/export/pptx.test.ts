@@ -5,7 +5,7 @@
 import { existsSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import JSZip from "jszip";
 import { afterEach, describe, expect, it } from "vitest";
-import { SLIDE_THEMES } from "@/lib/themes";
+import { SLIDE_THEME_NAMES, SLIDE_THEMES } from "@/lib/themes";
 import type { Deck } from "@/lib/schema/slide";
 import { downloadDeckAsPptx } from "./pptx";
 
@@ -155,4 +155,30 @@ describe("downloadDeckAsPptx", () => {
       SLIDE_THEMES.dark.foreground.replace("#", "").toUpperCase(),
     );
   });
+
+  it.each(SLIDE_THEME_NAMES)(
+    "writes the %s theme's background and text colors",
+    async (name) => {
+      const theme = SLIDE_THEMES[name];
+      const fileName = `theme-${name}.pptx`;
+      const deck = deckWith(
+        {
+          title: `Theme ${name}`,
+          slides: [{ id: "s1", type: "title", title: "Hello", body: [] }],
+        },
+        fileName,
+      );
+
+      await downloadDeckAsPptx(deck, theme);
+
+      const zip = await JSZip.loadAsync(readFileSync(fileName));
+      const slideXml = await zip.file("ppt/slides/slide1.xml")!.async("text");
+      expect(slideXml).toContain(
+        theme.background.replace("#", "").toUpperCase(),
+      );
+      expect(slideXml).toContain(
+        theme.foreground.replace("#", "").toUpperCase(),
+      );
+    },
+  );
 });

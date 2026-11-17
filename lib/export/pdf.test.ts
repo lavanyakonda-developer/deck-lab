@@ -4,7 +4,7 @@
 // @vitest-environment node
 import { existsSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
-import { SLIDE_THEMES } from "@/lib/themes";
+import { SLIDE_THEME_NAMES, SLIDE_THEMES } from "@/lib/themes";
 import type { Deck } from "@/lib/schema/slide";
 import { downloadDeckAsPdf } from "./pdf";
 
@@ -15,7 +15,14 @@ import { downloadDeckAsPdf } from "./pdf";
 function rgOperator(hexColor: string): string {
   const n = parseInt(hexColor.replace("#", ""), 16);
   const channel = (shift: number) => (((n >> shift) & 0xff) / 255).toFixed(2);
-  return `${channel(16)} ${channel(8)} ${channel(0)} rg`;
+  const [r, g, b] = [channel(16), channel(8), channel(0)];
+  // Pure grays (e.g. white) are written as a single-channel "x g" operator,
+  // with trailing zeros trimmed ("1.00" -> "1.") - also confirmed
+  // empirically.
+  const isGray =
+    (n >> 16) % 256 === (n >> 8) % 256 && (n >> 8) % 256 === n % 256;
+  if (isGray) return `${r.replace(/0+$/, "")} g`;
+  return `${r} ${g} ${b} rg`;
 }
 
 const outputPaths: string[] = [];
@@ -207,4 +214,24 @@ describe("downloadDeckAsPdf", () => {
     const darkBytes = readFileSync("compare-dark.pdf");
     expect(lightBytes.equals(darkBytes)).toBe(false);
   });
+
+  it.each(SLIDE_THEME_NAMES)(
+    "paints the %s theme's background color",
+    async (name) => {
+      const theme = SLIDE_THEMES[name];
+      const fileName = `theme-${name}.pdf`;
+      const deck = deckWith(
+        {
+          title: `Theme ${name}`,
+          slides: [{ id: "s1", type: "title", title: "Hello", body: [] }],
+        },
+        fileName,
+      );
+
+      await downloadDeckAsPdf(deck, theme);
+
+      const raw = readFileSync(fileName, "latin1");
+      expect(raw).toContain(rgOperator(theme.background));
+    },
+  );
 });

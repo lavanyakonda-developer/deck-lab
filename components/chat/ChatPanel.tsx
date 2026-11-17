@@ -35,6 +35,20 @@ function triggerPendingImageGeneration(triggered: Set<string>) {
   }
 }
 
+// Shown as the first assistant bubble in every chat. Display-only: it is
+// never stored in chatStore, so it's never resent to the model as history
+// and always appears (including for chats restored from localStorage).
+const GREETING = `Hey, I'm Deck Lab 👋
+
+I can generate a whole presentation for you, then add, update, delete or reorder slides as we go - just tell me what you need in plain English.
+
+So, what are we making a presentation about today?
+
+(Try something like "Create a 5-slide deck on JavaScript".)`;
+
+const ASSISTANT_BUBBLE_CLASS =
+  "self-start bg-zinc-100 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300";
+
 export function ChatPanel() {
   const [input, setInput] = useState("");
   // Status bubble shown while a request is in flight but no assistant
@@ -222,25 +236,23 @@ export function ChatPanel() {
         ref={messagesContainerRef}
         className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-5"
       >
-        {messages.length === 0 ? (
-          <p className="mx-auto mt-8 max-w-[240px] justify-center text-center text-sm leading-relaxed text-zinc-400 dark:text-zinc-600">
-            Try &ldquo;Create a 5-slide deck on javascript&rdquo; to get
-            started.
-          </p>
-        ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
-                message.role === "user"
-                  ? "self-end bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
-                  : "self-start bg-zinc-100 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
-              }`}
-            >
-              {message.content}
-            </div>
-          ))
-        )}
+        <div
+          className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${ASSISTANT_BUBBLE_CLASS}`}
+        >
+          {GREETING}
+        </div>
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+              message.role === "user"
+                ? "self-end bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
+                : ASSISTANT_BUBBLE_CLASS
+            }`}
+          >
+            {message.content}
+          </div>
+        ))}
         {loadingLabel && (
           <div className="self-start animate-pulse rounded-xl bg-zinc-100 px-3.5 py-2.5 text-sm text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
             {loadingLabel}
@@ -267,7 +279,7 @@ export function ChatPanel() {
             }}
             disabled={isGenerating}
             rows={2}
-            placeholder="Ask anything…"
+            placeholder="Describe your presentation or ask for a change…"
             className="w-full resize-none rounded-lg border border-zinc-200 bg-zinc-50 py-2.5 pr-14 pl-3.5 text-sm leading-relaxed text-zinc-900 placeholder:text-zinc-400 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
           />
           <button

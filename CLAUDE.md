@@ -277,6 +277,10 @@ generatedDeck }`; `ChatPanel.tsx` calls `loadDeck()` on that instead of
   `/api/chat` with the current deck + prior history, then reads the SSE
   response - see Streaming below - reacting to whichever events arrive
   rather than anything decided client-side in advance).
+- **Chat greeting**: `ChatPanel.tsx` always renders a fixed `GREETING`
+  assistant bubble first (replaced the old empty-state placeholder). It is
+  display-only - never stored in `chatStore`, so never sent to the model as
+  history, and it shows for restored chats too.
 - **Streaming** (Phase 5, M10): both `/api/generate` and `/api/chat` return
   `text/event-stream` (SSE) responses instead of one JSON blob, so slides
   and text appear incrementally rather than spinner-then-dump.
@@ -417,7 +421,10 @@ generateImage.ts`'s `generateImageForSlide()` POSTs that alt text to
     `client.images.generate()`. **Real API behavior differed from the
     installed SDK's type hints, discovered only via live testing**: the
     account this project uses has no `dall-e-3` access at all ("model
-    does not exist"), so the model is `gpt-image-1`; `quality: "standard"`
+    does not exist"), so the model was `gpt-image-1` - itself later retired
+    (Nov 2026, same "does not exist" error), so the model is now read from
+    `OPENAI_IMAGE_MODEL` (default `gpt-image-2`, verified live with the
+    params below); `quality: "standard"`
     (a dall-e-3-only value) is invalid for it (must be
     `low`/`medium`/`high`/`auto` - using `medium`); and `response_format`
     is entirely unrecognized as a parameter for GPT image models (they
@@ -521,6 +528,14 @@ selectedSlideId}` snapshot onto `history` as part of its own `set()`
     palette/font pairing/spacing"** to exactly 2 themes - light and dark,
     a straight color inversion - at the user's explicit request, same as
     the (reverted) app-theme attempt's scope.
+  - **Later expanded to 5 themes in a dropdown** at the user's request:
+    Classic Light (`light`), Midnight (`dark`), Corporate Blue
+    (`corporate`), Warm Sand (`warm`), Forest (`forest`) - still colors
+    only, no font/spacing variation. `light`/`dark` keys kept so persisted
+    values still resolve; `getSlideTheme` falls back to the default for an
+    unknown name. `ThemePicker.tsx` is a native `<select>` with a color
+    swatch. Export tests run `it.each(SLIDE_THEME_NAMES)` so every theme is
+    checked in both PPTX and PDF.
   - `lib/themes/index.ts` is the single source of truth: a
     `SlideThemeTokens` record (background/foreground/muted/border/
     headerFill/accent/chartColors, all hex strings) per theme name,
