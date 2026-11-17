@@ -1,5 +1,6 @@
 import { createId } from "@/lib/id";
 import type { Deck, Slide } from "@/lib/schema/slide";
+import { materializeSlide } from "@/lib/slides/layoutEngine";
 import { deckJsonSchema } from "./deckJsonSchema";
 import {
   GeneratedDeckSchema,
@@ -46,14 +47,13 @@ export async function generateDeckStreamed(
     for (const rawSlide of parser.feed(delta)) {
       const parsed = SlideGeneratedSchema.safeParse(rawSlide);
       if (!parsed.success) continue; // final validation below catches real corruption
-      const slide: Slide = {
-        id: createId("slide"),
+      const slide: Slide = materializeSlide({
         type: parsed.data.type,
         title: parsed.data.title,
         subtitle: parsed.data.subtitle ?? undefined,
         body: parsed.data.body.map(normalizeBlock),
         layout: normalizeLayout(parsed.data.layout),
-      };
+      });
       slides.push(slide);
       onSlide(slide);
     }

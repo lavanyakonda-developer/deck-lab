@@ -70,6 +70,8 @@ export function ThumbnailRail() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
       if (isEditableTarget(e.target)) return;
+      // With an element selected, arrows nudge it instead (SlideStage).
+      if (useDeckStore.getState().selectedElementId) return;
 
       const currentIds = useDeckStore.getState().deck.slides.map((s) => s.id);
       const currentSelectedId = useDeckStore.getState().selectedSlideId;

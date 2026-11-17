@@ -16,9 +16,10 @@ vi.mock("@/lib/ai/generateDeckStream", () => ({
     mockGenerateDeckStreamed(prompt, onSlide),
 }));
 
+import { materializeDeck } from "@/lib/slides/layoutEngine";
 import { POST } from "./route";
 
-const deck: Deck = {
+const deck: Deck = materializeDeck({
   id: "deck-1",
   title: "Q3 Roadmap",
   slides: [
@@ -36,7 +37,7 @@ const deck: Deck = {
       body: [],
     },
   ],
-};
+});
 
 function makeRequest(body: unknown): Request {
   return new Request("http://localhost/api/chat", {
@@ -256,7 +257,7 @@ describe("POST /api/chat", () => {
         }),
       ),
     );
-    const generated: Deck = {
+    const generated: Deck = materializeDeck({
       id: "deck-2",
       title: "Coffee",
       slides: [
@@ -268,7 +269,7 @@ describe("POST /api/chat", () => {
           body: [],
         },
       ],
-    };
+    });
     mockGenerateDeckStreamed.mockImplementation(async (_prompt, onSlide) => {
       for (const slide of generated.slides) onSlide(slide);
       return generated;

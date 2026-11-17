@@ -1,7 +1,24 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { Deck, LayoutHints, Slide, SlideType } from "@/lib/schema/slide";
+import type {
+  Deck,
+  ElementContent,
+  ElementStyle,
+  Frame,
+  LayoutHints,
+  Slide,
+  SlideElement,
+  SlideType,
+} from "@/lib/schema/slide";
+import { stripUndefined } from "@/lib/slides/elementFactory";
+import { reorderZ, type ZOrderMove } from "@/lib/slides/geometry";
 import { createId } from "@/lib/id";
+import {
+  applyContentPatch,
+  applyLayoutChange,
+  migrateLegacySlide,
+  type SlideContentPatch,
+} from "@/lib/slides/layoutEngine";
 import { seedDeck } from "@/lib/seedDeck";
 import { DEFAULT_SLIDE_THEME, type SlideThemeName } from "@/lib/themes";
 import { createDebouncedStorage } from "./debouncedStorage";
@@ -28,13 +45,41 @@ interface DeckSnapshot {
 interface DeckState {
   deck: Deck;
   selectedSlideId: string | null;
+  // The element selected on the canvas (UI state - not persisted, not in
+  // undo history). Always belongs to the selected slide.
+  selectedElementId: string | null;
   slideTheme: SlideThemeName;
   history: HistoryState<DeckSnapshot>;
   loadDeck: (deck: Deck) => void;
   selectSlide: (id: string | null) => void;
+  selectElement: (id: string | null) => void;
   setSlideTheme: (theme: SlideThemeName) => void;
   addSlide: (slide: NewSlideInput, index?: number) => string;
-  updateSlide: (id: string, patch: Partial<Omit<Slide, "id">>) => void;
+  // Semantic patch (title/subtitle/body/column titles) - the AI's
+  // update_slide. Mapped onto the slide's elements by lib/slides/layoutEngine.
+  updateSlide: (id: string, patch: SlideContentPatch) => void;
+  // Replaces one element's content - manual editing on the canvas, and
+  // async image generation filling in an image element's url.
+  updateElement: (
+    slideId: string,
+    elementId: string,
+    content: ElementContent,
+  ) => void;
+  // Adds an element on top of the slide and selects it.
+  addElement: (slideId: string, element: SlideElement) => void;
+  // Merges style fields; an explicit `undefined` clears that field.
+  updateElementStyle: (
+    slideId: string,
+    elementId: string,
+    patch: Partial<ElementStyle>,
+  ) => void;
+  setElementFrame: (slideId: string, elementId: string, frame: Frame) => void;
+  deleteElement: (slideId: string, elementId: string) => void;
+  reorderElement: (
+    slideId: string,
+    elementId: string,
+    move: ZOrderMove,
+  ) => void;
   deleteSlide: (id: string) => void;
   reorderSlides: (orderedIds: string[]) => void;
   changeLayout: (
@@ -45,6 +90,33 @@ interface DeckState {
   redo: () => void;
 }
 
+// Applies `edit` to one slide's element list, as one undoable step. A
+// no-op (same state, no history entry) if the slide or element is missing
+// or nothing changed.
+function editElements(
+  state: DeckState,
+  slideId: string,
+  elementId: string,
+  edit: (elements: SlideElement[]) => SlideElement[],
+): DeckState | Partial<DeckState> {
+  const slide = state.deck.slides.find((s) => s.id === slideId);
+  if (!slide?.elements.some((el) => el.id === elementId)) return state;
+  const elements = edit(slide.elements);
+  if (elements === slide.elements) return state;
+  return {
+    deck: {
+      ...state.deck,
+      slides: state.deck.slides.map((s) =>
+        s.id === slideId ? { ...s, elements } : s,
+      ),
+    },
+    history: pushHistory(state.history, {
+      deck: state.deck,
+      selectedSlideId: state.selectedSlideId,
+    }),
+  };
+}
+
 // Cached on globalThis so Fast Refresh reuses this store instead of
 // recreating it from seedDeck on every edit to this file.
 function buildDeckStore() {
@@ -53,6 +125,7 @@ function buildDeckStore() {
       (set, get) => ({
         deck: seedDeck,
         selectedSlideId: seedDeck.slides[0]?.id ?? null,
+        selectedElementId: null,
         slideTheme: DEFAULT_SLIDE_THEME,
         history: createHistoryState<DeckSnapshot>(),
 
@@ -64,6 +137,7 @@ function buildDeckStore() {
           set((state) => ({
             deck,
             selectedSlideId: deck.slides[0]?.id ?? null,
+            selectedElementId: null,
             history: pushHistory(state.history, {
               deck: state.deck,
               selectedSlideId: state.selectedSlideId,
@@ -71,7 +145,14 @@ function buildDeckStore() {
           })),
 
         // Pure navigation, not a content change - not part of undo history.
-        selectSlide: (id) => set({ selectedSlideId: id }),
+        selectSlide: (id) =>
+          set((state) =>
+            id === state.selectedSlideId
+              ? state
+              : { selectedSlideId: id, selectedElementId: null },
+          ),
+
+        selectElement: (id) => set({ selectedElementId: id }),
 
         // Presentation preference, not deck content (lib/themes) - not part
         // of undo history either, same reasoning as selectSlide.
@@ -90,6 +171,7 @@ function buildDeckStore() {
             return {
               deck: { ...state.deck, slides },
               selectedSlideId: id,
+              selectedElementId: null,
               history: pushHistory(state.history, {
                 deck: state.deck,
                 selectedSlideId: state.selectedSlideId,
@@ -108,7 +190,7 @@ function buildDeckStore() {
               deck: {
                 ...state.deck,
                 slides: state.deck.slides.map((slide) =>
-                  slide.id === id ? { ...slide, ...patch } : slide,
+                  slide.id === id ? applyContentPatch(slide, patch) : slide,
                 ),
               },
               history: pushHistory(state.history, {
@@ -117,6 +199,80 @@ function buildDeckStore() {
               }),
             };
           }),
+
+        updateElement: (slideId, elementId, content) =>
+          set((state) =>
+            editElements(state, slideId, elementId, (elements) =>
+              elements.map((el) =>
+                el.id === elementId ? { ...el, content } : el,
+              ),
+            ),
+          ),
+
+        addElement: (slideId, element) =>
+          set((state) => {
+            if (!state.deck.slides.some((s) => s.id === slideId)) return state;
+            return {
+              deck: {
+                ...state.deck,
+                slides: state.deck.slides.map((s) =>
+                  s.id === slideId
+                    ? { ...s, elements: [...s.elements, element] }
+                    : s,
+                ),
+              },
+              selectedSlideId: slideId,
+              selectedElementId: element.id,
+              history: pushHistory(state.history, {
+                deck: state.deck,
+                selectedSlideId: state.selectedSlideId,
+              }),
+            };
+          }),
+
+        updateElementStyle: (slideId, elementId, patch) =>
+          set((state) =>
+            editElements(state, slideId, elementId, (elements) =>
+              elements.map((el) =>
+                el.id === elementId
+                  ? { ...el, style: stripUndefined({ ...el.style, ...patch }) }
+                  : el,
+              ),
+            ),
+          ),
+
+        // Called once per gesture (on pointer release), never per pointer
+        // move, so one drag/resize is one undo step.
+        setElementFrame: (slideId, elementId, frame) =>
+          set((state) =>
+            editElements(state, slideId, elementId, (elements) =>
+              elements.map((el) =>
+                el.id === elementId ? { ...el, frame } : el,
+              ),
+            ),
+          ),
+
+        deleteElement: (slideId, elementId) =>
+          set((state) => {
+            const next = editElements(state, slideId, elementId, (elements) =>
+              elements.filter((el) => el.id !== elementId),
+            );
+            if (next === state) return state;
+            return {
+              ...next,
+              selectedElementId:
+                state.selectedElementId === elementId
+                  ? null
+                  : state.selectedElementId,
+            };
+          }),
+
+        reorderElement: (slideId, elementId, move) =>
+          set((state) =>
+            editElements(state, slideId, elementId, (elements) =>
+              reorderZ(elements, elementId, move),
+            ),
+          ),
 
         deleteSlide: (id) =>
           set((state) => {
@@ -133,6 +289,10 @@ function buildDeckStore() {
             return {
               deck: { ...state.deck, slides },
               selectedSlideId,
+              selectedElementId:
+                selectedSlideId === state.selectedSlideId
+                  ? state.selectedElementId
+                  : null,
               history: pushHistory(state.history, {
                 deck: state.deck,
                 selectedSlideId: state.selectedSlideId,
@@ -164,13 +324,7 @@ function buildDeckStore() {
               deck: {
                 ...state.deck,
                 slides: state.deck.slides.map((slide) =>
-                  slide.id === id
-                    ? {
-                        ...slide,
-                        ...(changes.type ? { type: changes.type } : {}),
-                        layout: { ...slide.layout, ...changes.layout },
-                      }
-                    : slide,
+                  slide.id === id ? applyLayoutChange(slide, changes) : slide,
                 ),
               },
               history: pushHistory(state.history, {
@@ -215,6 +369,20 @@ function buildDeckStore() {
         // Undo/redo history is deliberately session-only - persisting every
         // past deck snapshot would bloat localStorage indefinitely, and
         // resuming an undo stack across a page reload isn't expected UX.
+        // v1: slides moved from fixed-layout fields (title/body/layout) to
+        // positioned elements - decks saved before that are re-laid out
+        // through the layout engine on load, so nothing is lost.
+        version: 1,
+        migrate: (persisted) => {
+          const state = persisted as { deck?: Deck } | undefined;
+          if (state?.deck?.slides) {
+            state.deck = {
+              ...state.deck,
+              slides: state.deck.slides.map(migrateLegacySlide),
+            };
+          }
+          return state as DeckState;
+        },
         partialize: (state) => ({
           deck: state.deck,
           selectedSlideId: state.selectedSlideId,
@@ -225,10 +393,13 @@ function buildDeckStore() {
   );
 }
 
+// The cache key is versioned alongside the persisted schema version: after a
+// slide-shape change, a dev server / Fast Refresh session would otherwise
+// keep serving the old cached store (old-shaped slides) and crash.
 declare global {
-  var __deckLabDeckStore: ReturnType<typeof buildDeckStore> | undefined;
+  var __deckLabDeckStoreV1: ReturnType<typeof buildDeckStore> | undefined;
 }
 
 export const useDeckStore =
-  globalThis.__deckLabDeckStore ??
-  (globalThis.__deckLabDeckStore = buildDeckStore());
+  globalThis.__deckLabDeckStoreV1 ??
+  (globalThis.__deckLabDeckStoreV1 = buildDeckStore());

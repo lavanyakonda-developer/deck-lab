@@ -35,12 +35,22 @@ PowerPoint file in one click.
 - **Context-aware** — the AI knows which slide you're looking at and asks to
   confirm before changing it when your request is ambiguous.
 
-### ✍️ Manual editing
+### ✍️ Manual editing (Google Slides-style canvas)
 
-- **Click-to-edit text** — titles, subtitles, bullets and paragraphs, edited
-  directly on the slide.
+- **Everything is an element** — titles, text, bullets, tables, charts,
+  images and shapes can each be selected, dragged, resized (Shift keeps
+  proportions), nudged with the arrow keys, layered (front/back) or
+  deleted, with snapping guides to the slide and to other elements.
+- **Insert anything** — text boxes, bullet lists, rectangles, ellipses,
+  tables, charts, and images uploaded from your computer.
+- **Format** — font size, bold, italic, alignment, text color and fill;
+  chart type; add/remove table rows and columns.
+- **Click-to-edit text** — click a selected element again (or double-click)
+  to type into titles, bullets, paragraphs and table cells.
 - **Add, delete and drag-to-reorder slides** from the thumbnail rail.
-- **Five layouts** — title, content, two-column, comparison and table.
+- **Five starting layouts** — title, content, two-column, comparison and
+  table. A layout only places elements initially; after that you can
+  rearrange freely.
 - **AI and manual edits coexist** — both go through the same state actions, so
   neither one overwrites the other.
 
@@ -48,8 +58,9 @@ PowerPoint file in one click.
 
 - **Unified undo / redo** across both AI and manual changes (`⌘Z` / `⌘⇧Z`).
 - **Five slide themes** (Classic Light, Midnight, Corporate Blue, Warm Sand, Forest), picked from a dropdown and carried through to exports.
-- **One-click export** to **PDF** and **PPTX**, with charts redrawn as native
-  vector graphics (not screenshots).
+- **One-click export** to **PDF** and **PPTX** — every element lands at its
+  exact on-canvas position with its formatting; charts are native vector
+  graphics (not screenshots) and PPTX text stays editable.
 - **Auto-save** — your deck and chat history persist across page reloads.
 
 ---

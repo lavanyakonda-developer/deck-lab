@@ -6,7 +6,8 @@ import { existsSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import JSZip from "jszip";
 import { afterEach, describe, expect, it } from "vitest";
 import { SLIDE_THEME_NAMES, SLIDE_THEMES } from "@/lib/themes";
-import type { Deck } from "@/lib/schema/slide";
+import type { Deck, SlideContent } from "@/lib/schema/slide";
+import { materializeDeck } from "@/lib/slides/layoutEngine";
 import { downloadDeckAsPptx } from "./pptx";
 
 const outputPaths: string[] = [];
@@ -17,14 +18,18 @@ afterEach(() => {
   }
 });
 
-function deckWith(overrides: Partial<Deck>, fileName: string): Deck {
+// Slides are written as semantic content and laid out into elements, the
+// same way the app builds them.
+function deckWith(
+  overrides: { title?: string; slides?: (SlideContent & { id: string })[] },
+  fileName: string,
+): Deck {
   outputPaths.push(fileName);
-  return {
+  return materializeDeck({
     id: "deck-1",
-    title: "Test Deck",
-    slides: [],
-    ...overrides,
-  };
+    title: overrides.title ?? "Test Deck",
+    slides: overrides.slides ?? [],
+  });
 }
 
 describe("downloadDeckAsPptx", () => {
@@ -181,4 +186,65 @@ describe("downloadDeckAsPptx", () => {
       );
     },
   );
+
+  it("places each element at its canvas position (stage units -> EMU)", async () => {
+    const deck = deckWith(
+      {
+        title: "Positions",
+        slides: [{ id: "s1", type: "title", title: "Hi", body: [] }],
+      },
+      "positions.pptx",
+    );
+    const title = deck.slides[0].elements.find((el) => el.role === "title")!;
+    title.frame = { x: 960, y: 540, w: 400, h: 100 };
+
+    await downloadDeckAsPptx(deck, SLIDE_THEMES.light);
+
+    const zip = await JSZip.loadAsync(readFileSync("positions.pptx"));
+    const xml = await zip.file("ppt/slides/slide1.xml")!.async("text");
+    const expectedX = Math.round(((960 * 13.33) / 1920) * 914400);
+    const offsets = [...xml.matchAll(/<a:off x="(\d+)" y="(\d+)"/g)].map((m) =>
+      Number(m[1]),
+    );
+    expect(offsets.some((x) => Math.abs(x - expectedX) <= 2)).toBe(true);
+  });
+
+  it("exports explicit formatting, shapes and inserted text boxes", async () => {
+    const deck = deckWith(
+      {
+        title: "Styled",
+        slides: [{ id: "s1", type: "content", title: "T", body: [] }],
+      },
+      "styled.pptx",
+    );
+    deck.slides[0].elements.push(
+      {
+        id: "box",
+        role: "textbox",
+        frame: { x: 100, y: 600, w: 600, h: 100 },
+        style: {
+          fontSize: 40,
+          fontWeight: "bold",
+          color: "#ab1234",
+          fill: "#fef3c7",
+        },
+        content: { type: "text", text: "Callout" },
+      },
+      {
+        id: "circle",
+        role: "decoration",
+        frame: { x: 1200, y: 600, w: 200, h: 200 },
+        content: { type: "shape", shape: "ellipse" },
+      },
+    );
+
+    await downloadDeckAsPptx(deck, SLIDE_THEMES.light);
+
+    const zip = await JSZip.loadAsync(readFileSync("styled.pptx"));
+    const xml = await zip.file("ppt/slides/slide1.xml")!.async("text");
+    expect(xml).toContain("Callout");
+    expect(xml).toContain("AB1234");
+    expect(xml).toContain("FEF3C7");
+    expect(xml).toContain('prst="ellipse"');
+  });
 });

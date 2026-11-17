@@ -1,4 +1,5 @@
 import type { ContentBlock, Deck } from "@/lib/schema/slide";
+import { getSlideContent } from "@/lib/slides/layoutEngine";
 
 const MAX_PARAGRAPH_CHARS = 120;
 
@@ -37,7 +38,11 @@ export function serializeDeckContext(
   deck: Deck,
   selectedSlideId?: string | null,
 ): string {
-  const lines = deck.slides.map((slide, index) => {
+  const lines = deck.slides.map((stored, index) => {
+    // The model reads and edits semantic content (read from elements by
+    // role); element positions aren't useful to its tools and would only
+    // bloat the prompt.
+    const slide = { id: stored.id, ...getSlideContent(stored) };
     const parts = [
       `${index + 1}. id="${slide.id}" type=${slide.type} title="${slide.title}"`,
     ];

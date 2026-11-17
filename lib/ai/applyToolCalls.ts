@@ -1,4 +1,8 @@
 import type { LayoutHints, Slide, SlideType } from "@/lib/schema/slide";
+import {
+  materializeSlide,
+  type SlideContentPatch,
+} from "@/lib/slides/layoutEngine";
 import { normalizeBlock, normalizeLayout } from "./normalize";
 import type { ValidatedToolCall } from "./tools";
 
@@ -8,8 +12,8 @@ interface ChangeLayoutChanges {
 }
 
 interface DeckActions {
-  addSlide: (slide: Omit<Slide, "id">, index?: number) => string;
-  updateSlide: (id: string, patch: Partial<Omit<Slide, "id">>) => void;
+  addSlide: (slide: Slide, index?: number) => string;
+  updateSlide: (id: string, patch: SlideContentPatch) => void;
   deleteSlide: (id: string) => void;
   reorderSlides: (orderedIds: string[]) => void;
   changeLayout: (id: string, changes: ChangeLayoutChanges) => void;
@@ -32,20 +36,21 @@ export function applyToolCall(actions: DeckActions, call: ValidatedToolCall) {
       return;
 
     case "add_slide":
+      // The model describes content; the layout engine positions it.
       actions.addSlide(
-        {
+        materializeSlide({
           type: call.args.slide.type,
           title: call.args.slide.title,
           subtitle: call.args.slide.subtitle ?? undefined,
           body: call.args.slide.body.map(normalizeBlock),
           layout: normalizeLayout(call.args.slide.layout),
-        },
+        }),
         call.args.index ?? undefined,
       );
       return;
 
     case "update_slide": {
-      const patch: Partial<Omit<Slide, "id">> = {};
+      const patch: SlideContentPatch = {};
       if (call.args.title !== null) patch.title = call.args.title;
       if (call.args.subtitle !== null) patch.subtitle = call.args.subtitle;
       if (call.args.body !== null)

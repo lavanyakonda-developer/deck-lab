@@ -5,6 +5,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { SlideThemeTokens } from "@/lib/themes";
 import type { Slide } from "@/lib/schema/slide";
+import { getSlideTitle } from "@/lib/slides/layoutEngine";
 
 interface SlideThumbnailProps {
   slide: Slide;
@@ -79,7 +80,7 @@ export const SlideThumbnail = memo(function SlideThumbnail({
         {index + 1}
       </span>
       <span className="truncate text-xs" style={{ color: theme.foreground }}>
-        {slide.title || "Untitled"}
+        {getSlideTitle(slide) || "Untitled"}
       </span>
     </div>
   );

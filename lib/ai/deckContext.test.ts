@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Deck } from "@/lib/schema/slide";
+import { materializeDeck } from "@/lib/slides/layoutEngine";
 import { serializeDeckContext } from "./deckContext";
 
-const deck: Deck = {
+const deck: Deck = materializeDeck({
   id: "deck-1",
   title: "Q3 Roadmap",
   slides: [
@@ -32,7 +33,7 @@ const deck: Deck = {
       body: [{ type: "table", headers: ["A", "B"], rows: [["1", "2"]] }],
     },
   ],
-};
+});
 
 describe("serializeDeckContext", () => {
   it("includes every slide's real id so the model can reference it", () => {
@@ -68,6 +69,15 @@ describe("serializeDeckContext", () => {
     const otherLine = lines.find((line) => line.includes("slide-a"));
     expect(selectedLine).toContain("(currently selected/viewed by the user)");
     expect(otherLine).not.toContain("currently selected");
+  });
+
+  it("reads content from elements, not positions - a moved title is still found", () => {
+    const moved = structuredClone(deck);
+    const title = moved.slides[1].elements.find((el) => el.role === "title")!;
+    title.frame = { x: 900, y: 900, w: 400, h: 80 };
+    expect(serializeDeckContext(moved)).toContain('title="Objectives"');
+    expect(serializeDeckContext(moved)).not.toContain("frame");
+    expect(serializeDeckContext(moved)).not.toContain("900");
   });
 
   it("marks no slide as selected when selectedSlideId is omitted or null", () => {

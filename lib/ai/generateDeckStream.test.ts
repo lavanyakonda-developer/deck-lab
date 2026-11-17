@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getSlideContent, getSlideTitle } from "@/lib/slides/layoutEngine";
 
 const mockCreate = vi.fn();
 
@@ -59,13 +60,13 @@ describe("generateDeckStreamed", () => {
 
     const emitted: string[] = [];
     const deck = await generateDeckStreamed("Create a deck", (slide) => {
-      emitted.push(slide.title);
+      emitted.push(getSlideTitle(slide));
     });
 
     expect(emitted).toEqual(["Q3 Roadmap", "Objectives"]);
     expect(deck.title).toBe("Q3 Roadmap");
     expect(deck.slides).toHaveLength(2);
-    expect(deck.slides.map((s) => s.title)).toEqual(emitted);
+    expect(deck.slides.map(getSlideTitle)).toEqual(emitted);
   });
 
   it("the final deck reuses the exact same slide objects (ids) streamed via onSlide", async () => {
@@ -84,7 +85,7 @@ describe("generateDeckStreamed", () => {
 
     const deck = await generateDeckStreamed("Create a deck", () => {});
 
-    expect(deck.slides[1].body[0]).toMatchObject({
+    expect(getSlideContent(deck.slides[1]).body[0]).toMatchObject({
       type: "bullets",
       items: ["Grow", "Ship"],
       column: undefined,

@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { SlideSchema } from "@/lib/schema/slide";
+import { getSlideContent } from "@/lib/slides/layoutEngine";
 import { applyToolCall } from "./applyToolCalls";
 import type { ValidatedToolCall } from "./tools";
 
@@ -33,7 +35,7 @@ describe("applyToolCall", () => {
     warnSpy.mockRestore();
   });
 
-  it("add_slide calls addSlide with a normalized slide and the given index", () => {
+  it("add_slide calls addSlide with a normalized, laid-out slide and the given index", () => {
     const actions = makeActions();
     const call: ValidatedToolCall = {
       tool: "add_slide",
@@ -51,16 +53,15 @@ describe("applyToolCall", () => {
 
     applyToolCall(actions, call);
 
-    expect(actions.addSlide).toHaveBeenCalledWith(
-      {
-        type: "content",
-        title: "Pricing",
-        subtitle: undefined,
-        body: [{ type: "bullets", items: ["Free", "Pro"], column: undefined }],
-        layout: undefined,
-      },
-      2,
-    );
+    expect(actions.addSlide).toHaveBeenCalledTimes(1);
+    const [slide, index] = actions.addSlide.mock.calls[0];
+    expect(index).toBe(2);
+    expect(SlideSchema.safeParse(slide).success).toBe(true);
+    expect(getSlideContent(slide)).toEqual({
+      type: "content",
+      title: "Pricing",
+      body: [{ type: "bullets", items: ["Free", "Pro"] }],
+    });
   });
 
   it("update_slide only includes non-null fields in the patch", () => {

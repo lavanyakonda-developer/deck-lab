@@ -1,27 +1,21 @@
 import type jsPDF from "jspdf";
 import type { autoTable as AutoTable } from "jspdf-autotable";
 import type { SlideThemeTokens } from "@/lib/themes";
-import type { ContentBlock, Deck, Slide } from "@/lib/schema/slide";
-
-// 16:9 widescreen, in inches - matches the proportions of the on-screen
-// canvas (SlideCanvas.tsx's aspect-video) and lib/export/pptx.ts's layout,
-// so a PDF and a PPTX export of the same deck look the same shape.
-const SLIDE_W = 13.33;
-const SLIDE_H = 7.5;
-const MARGIN = 0.5;
-const BODY_TOP = 1.3;
-const BODY_BOTTOM = 0.3;
-
-interface Region {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-// jspdf-autotable attaches this after drawing a table; its own types
-// declare the doc parameter as `any`, so this is the narrowest true shape.
-type DocWithAutoTable = jsPDF & { lastAutoTable?: { finalY: number } };
+import type {
+  ContentBlock,
+  Deck,
+  Slide,
+  SlideElement,
+} from "@/lib/schema/slide";
+import {
+  SLIDE_H,
+  SLIDE_W,
+  isContentBlock,
+  resolveTextStyle,
+  toRegion,
+  type Region,
+  type ResolvedTextStyle,
+} from "./elementLayout";
 
 function fileNameFor(title: string): string {
   const slug = title
@@ -39,40 +33,52 @@ function paintBackground(doc: jsPDF, theme: SlideThemeTokens) {
   doc.rect(0, 0, SLIDE_W, SLIDE_H, "F");
 }
 
-function addSlideTitle(doc: jsPDF, title: string, theme: SlideThemeTokens) {
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.setTextColor(theme.foreground);
-  doc.text(title, MARGIN, 0.85);
+function fontStyle(text: { bold: boolean; italic: boolean }): string {
+  if (text.bold && text.italic) return "bolditalic";
+  if (text.bold) return "bold";
+  if (text.italic) return "italic";
+  return "normal";
 }
 
-// Wraps `text` to `region.w` and draws as many lines as fit in the
-// remaining vertical space, returning the new cursor y. There's no layout
-// engine to measure against here (same constraint as lib/export/pptx.ts),
-// so overflow is truncated rather than shrinking the font or spilling
-// onto a new page.
+function lineHeightFor(fontSize: number) {
+  return (fontSize / 72) * 1.35;
+}
+
+// Wraps `text` to the region width and draws as many lines as fit in the
+// region's height (jsPDF has no layout engine - overflow is truncated
+// rather than spilling onto a new page). `prefix` is drawn on the first
+// line only (a bullet). Returns the y after the last line drawn.
 function drawWrapped(
   doc: jsPDF,
   text: string,
   region: Region,
-  cursorY: number,
-  remaining: number,
-  options: { fontSize: number; color: string; bold?: boolean },
+  startY: number,
+  style: ResolvedTextStyle,
+  prefix = "",
 ): number {
-  doc.setFont("helvetica", options.bold ? "bold" : "normal");
-  doc.setFontSize(options.fontSize);
-  doc.setTextColor(options.color);
+  doc.setFont("helvetica", fontStyle(style));
+  doc.setFontSize(style.fontSize);
+  doc.setTextColor(style.color);
 
-  const lineHeight = (options.fontSize / 72) * 1.35;
-  const lines: string[] = doc.splitTextToSize(text, region.w);
-  const maxLines = Math.max(1, Math.floor(remaining / lineHeight));
+  const lineHeight = lineHeightFor(style.fontSize);
+  const indent = prefix ? doc.getTextWidth(prefix) : 0;
+  const lines: string[] = doc.splitTextToSize(text, region.w - indent);
+  const remaining = region.y + region.h - startY;
+  const maxLines = Math.max(0, Math.floor(remaining / lineHeight));
   const shown = lines.slice(0, maxLines);
 
+  const x =
+    style.align === "center"
+      ? region.x + region.w / 2
+      : style.align === "right"
+        ? region.x + region.w
+        : region.x + indent;
   shown.forEach((line, i) => {
-    doc.text(line, region.x, cursorY + lineHeight * (i + 1) - lineHeight * 0.3);
+    const baseline = startY + lineHeight * (i + 1) - lineHeight * 0.3;
+    if (i === 0 && prefix) doc.text(prefix, region.x, baseline);
+    doc.text(line, x, baseline, { align: style.align });
   });
-
-  return cursorY + lineHeight * shown.length;
+  return startY + lineHeight * shown.length;
 }
 
 // Chart label/legend text is drawn with jsPDF's own doc.text(), not
@@ -201,154 +207,186 @@ function drawPieChart(
   });
 }
 
-// Lays blocks out top-to-bottom within `region`, same approach (and same
-// height-estimation caveat) as lib/export/pptx.ts's renderBlocks.
-function renderBlocks(
+const CAPTION_H = 0.25;
+
+function drawCaption(
   doc: jsPDF,
-  autoTable: typeof AutoTable,
-  blocks: ContentBlock[],
+  caption: string,
   region: Region,
   theme: SlideThemeTokens,
 ) {
-  let cursorY = region.y;
-  const bottom = region.y + region.h;
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(9);
+  doc.setTextColor(theme.muted);
+  doc.text(caption, region.x + region.w / 2, region.y + region.h - 0.08, {
+    align: "center",
+  });
+}
 
-  for (const block of blocks) {
-    const remaining = bottom - cursorY;
-    if (remaining <= 0.2) break;
+// Draws one content block filling its element's region.
+function renderBlock(
+  doc: jsPDF,
+  autoTable: typeof AutoTable,
+  block: ContentBlock,
+  region: Region,
+  text: ResolvedTextStyle,
+  theme: SlideThemeTokens,
+) {
+  switch (block.type) {
+    case "bullets": {
+      let y = region.y;
+      const gap = lineHeightFor(text.fontSize) * 0.35;
+      for (const item of block.items) {
+        y = drawWrapped(doc, item, region, y, text, "•  ") + gap;
+      }
+      return;
+    }
 
-    switch (block.type) {
-      case "bullets": {
-        for (const item of block.items) {
-          const itemRemaining = bottom - cursorY;
-          if (itemRemaining <= 0.15) break;
-          cursorY = drawWrapped(
-            doc,
-            `•  ${item}`,
-            region,
-            cursorY,
-            itemRemaining,
-            { fontSize: 12, color: theme.foreground },
-          );
+    case "paragraph":
+      drawWrapped(doc, block.text, region, region.y, text);
+      return;
+
+    case "table":
+      autoTable(doc, {
+        head: [block.headers],
+        body: block.rows,
+        startY: region.y,
+        margin: { left: region.x, right: SLIDE_W - region.x - region.w },
+        tableWidth: region.w,
+        styles: {
+          fontSize: text.fontSize * 0.875,
+          textColor: text.color,
+          fontStyle: text.italic ? "italic" : "normal",
+          halign: text.align,
+          cellPadding: 0.04,
+          fillColor: text.fill ?? theme.background,
+        },
+        headStyles: {
+          fillColor: theme.headerFill,
+          textColor: text.color,
+          fontStyle: "bold",
+        },
+        theme: "grid",
+        tableLineColor: theme.border,
+        tableLineWidth: 0.005,
+      });
+      return;
+
+    case "chart": {
+      const chartRegion: Region = {
+        ...region,
+        h: region.h - (block.caption ? CAPTION_H : 0),
+      };
+      if (block.chartType === "bar")
+        drawBarChart(doc, block.data, chartRegion, theme);
+      else if (block.chartType === "line")
+        drawLineChart(doc, block.data, chartRegion, theme);
+      else drawPieChart(doc, block.data, chartRegion, theme);
+      if (block.caption) drawCaption(doc, block.caption, region, theme);
+      return;
+    }
+
+    case "image": {
+      const boxH = region.h - (block.caption ? CAPTION_H : 0);
+      if (block.url) {
+        // Fit ("contain") using the image's real aspect ratio - uploaded
+        // images aren't square like generated ones.
+        let ratio = 1;
+        try {
+          const props = doc.getImageProperties(block.url);
+          ratio = props.width / props.height || 1;
+        } catch {
+          // Unknown format - fall back to square.
         }
-        cursorY += 0.1;
-        break;
-      }
-
-      case "paragraph": {
-        cursorY =
-          drawWrapped(doc, block.text, region, cursorY, remaining, {
-            fontSize: 12,
-            color: theme.foreground,
-          }) + 0.1;
-        break;
-      }
-
-      case "table": {
-        autoTable(doc, {
-          head: [block.headers],
-          body: block.rows,
-          startY: cursorY,
-          margin: { left: region.x, right: SLIDE_W - region.x - region.w },
-          tableWidth: region.w,
-          styles: {
-            fontSize: 9,
-            textColor: theme.foreground,
-            cellPadding: 0.04,
-            fillColor: theme.background,
-          },
-          headStyles: {
-            fillColor: theme.headerFill,
-            textColor: theme.foreground,
-            fontStyle: "bold",
-          },
-          theme: "grid",
-          tableLineColor: theme.border,
-          tableLineWidth: 0.005,
-        });
-        cursorY =
-          (doc as DocWithAutoTable).lastAutoTable?.finalY ?? cursorY + 1;
-        cursorY += 0.2;
-        break;
-      }
-
-      case "chart": {
-        const captionH = block.caption ? 0.25 : 0;
-        const chartRegion: Region = {
-          ...region,
-          y: cursorY,
-          h: Math.min(3, remaining - captionH),
-        };
-        if (block.chartType === "bar")
-          drawBarChart(doc, block.data, chartRegion, theme);
-        else if (block.chartType === "line")
-          drawLineChart(doc, block.data, chartRegion, theme);
-        else drawPieChart(doc, block.data, chartRegion, theme);
-        cursorY += chartRegion.h;
-        if (block.caption) {
-          cursorY = drawWrapped(doc, block.caption, region, cursorY, captionH, {
-            fontSize: 9,
-            color: theme.muted,
-          });
+        let w = region.w;
+        let h = w / ratio;
+        if (h > boxH) {
+          h = boxH;
+          w = h * ratio;
         }
-        cursorY += 0.15;
-        break;
+        doc.addImage(
+          block.url,
+          region.x + (region.w - w) / 2,
+          region.y + (boxH - h) / 2,
+          w,
+          h,
+        );
+      } else {
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(11);
+        doc.setTextColor(theme.muted);
+        doc.text(
+          `[Image: ${block.alt}]`,
+          region.x + region.w / 2,
+          region.y + boxH / 2,
+          { align: "center", baseline: "middle" },
+        );
       }
-
-      case "image": {
-        const captionH = block.caption ? 0.25 : 0;
-        const boxH = Math.min(3, remaining - captionH);
-        if (block.url) {
-          // Generated images are always 1024x1024 (see
-          // app/api/generate-image/route.ts) - square, so a centered
-          // square fit needs no measured aspect ratio.
-          const size = Math.min(region.w, boxH);
-          doc.addImage(
-            block.url,
-            region.x + (region.w - size) / 2,
-            cursorY + (boxH - size) / 2,
-            size,
-            size,
-          );
-        } else {
-          doc.setFont("helvetica", "italic");
-          doc.setFontSize(11);
-          doc.setTextColor(theme.muted);
-          doc.text(
-            `[Image: ${block.alt}]`,
-            region.x + region.w / 2,
-            cursorY + boxH / 2,
-            {
-              align: "center",
-              baseline: "middle",
-            },
-          );
-        }
-        cursorY += boxH;
-        if (block.caption) {
-          cursorY = drawWrapped(doc, block.caption, region, cursorY, captionH, {
-            fontSize: 9,
-            color: theme.muted,
-          });
-        }
-        cursorY += 0.15;
-        break;
-      }
+      if (block.caption) drawCaption(doc, block.caption, region, theme);
+      return;
     }
   }
 }
 
-function addColumnHeading(
+// Draws one element at its exact canvas position and size.
+function renderElement(
   doc: jsPDF,
-  text: string,
-  region: Region,
+  autoTable: typeof AutoTable,
+  element: SlideElement,
   theme: SlideThemeTokens,
-): Region {
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(theme.muted);
-  doc.text(text.toUpperCase(), region.x, region.y + 0.15);
-  return { ...region, y: region.y + 0.35, h: region.h - 0.35 };
+) {
+  const region = toRegion(element.frame);
+  const text = resolveTextStyle(element, theme);
+  const { content } = element;
+
+  if (content.type === "shape") {
+    doc.setDrawColor(element.style?.color ?? theme.border);
+    doc.setLineWidth(0.02);
+    if (text.fill) doc.setFillColor(text.fill);
+    const mode = text.fill ? "FD" : "S";
+    if (content.shape === "ellipse") {
+      doc.ellipse(
+        region.x + region.w / 2,
+        region.y + region.h / 2,
+        region.w / 2,
+        region.h / 2,
+        mode,
+      );
+    } else {
+      doc.roundedRect(region.x, region.y, region.w, region.h, 0.12, 0.12, mode);
+    }
+    return;
+  }
+
+  if (text.fill) {
+    doc.setFillColor(text.fill);
+    doc.rect(region.x, region.y, region.w, region.h, "F");
+  }
+
+  if (content.type === "text") {
+    if (!content.text) return; // empty placeholder box
+    const value = text.uppercase ? content.text.toUpperCase() : content.text;
+    // Vertical alignment: measure the wrapped height, then offset.
+    doc.setFont("helvetica", fontStyle(text));
+    doc.setFontSize(text.fontSize);
+    const lines: string[] = doc.splitTextToSize(value, region.w);
+    const blockH = Math.min(
+      region.h,
+      lines.length * lineHeightFor(text.fontSize),
+    );
+    const startY =
+      text.valign === "middle"
+        ? region.y + (region.h - blockH) / 2
+        : text.valign === "bottom"
+          ? region.y + region.h - blockH
+          : region.y;
+    drawWrapped(doc, value, region, startY, text);
+    return;
+  }
+
+  if (isContentBlock(content)) {
+    renderBlock(doc, autoTable, content, region, text, theme);
+  }
 }
 
 function buildSlide(
@@ -358,73 +396,10 @@ function buildSlide(
   theme: SlideThemeTokens,
 ) {
   paintBackground(doc, theme);
-  const fullRegion: Region = {
-    x: MARGIN,
-    y: BODY_TOP,
-    w: SLIDE_W - MARGIN * 2,
-    h: SLIDE_H - BODY_TOP - BODY_BOTTOM,
-  };
-
-  switch (slide.type) {
-    case "title": {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(32);
-      doc.setTextColor(theme.foreground);
-      doc.text(slide.title, SLIDE_W / 2, SLIDE_H / 2 - 0.15, {
-        align: "center",
-      });
-      if (slide.subtitle) {
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(14);
-        doc.setTextColor(theme.muted);
-        doc.text(slide.subtitle, SLIDE_W / 2, SLIDE_H / 2 + 0.45, {
-          align: "center",
-        });
-      }
-      break;
-    }
-
-    case "content": {
-      addSlideTitle(doc, slide.title, theme);
-      renderBlocks(doc, autoTable, slide.body, fullRegion, theme);
-      break;
-    }
-
-    case "table": {
-      addSlideTitle(doc, slide.title, theme);
-      const tableBlock = slide.body.find((block) => block.type === "table");
-      if (tableBlock)
-        renderBlocks(doc, autoTable, [tableBlock], fullRegion, theme);
-      break;
-    }
-
-    case "two-column":
-    case "comparison": {
-      addSlideTitle(doc, slide.title, theme);
-      const gap = 0.4;
-      const colW = (fullRegion.w - gap) / 2;
-      const left = slide.body.filter((block) => (block.column ?? 0) === 0);
-      const right = slide.body.filter((block) => (block.column ?? 0) === 1);
-      const [leftTitle, rightTitle] =
-        slide.layout?.columnTitles ??
-        (slide.type === "comparison" ? ["Option A", "Option B"] : []);
-
-      let leftRegion: Region = { ...fullRegion, w: colW };
-      let rightRegion: Region = {
-        ...fullRegion,
-        x: fullRegion.x + colW + gap,
-        w: colW,
-      };
-
-      if (leftTitle)
-        leftRegion = addColumnHeading(doc, leftTitle, leftRegion, theme);
-      if (rightTitle)
-        rightRegion = addColumnHeading(doc, rightTitle, rightRegion, theme);
-
-      renderBlocks(doc, autoTable, left, leftRegion, theme);
-      renderBlocks(doc, autoTable, right, rightRegion, theme);
-      break;
-    }
+  // Array order is stacking order - later elements draw on top, same as
+  // the canvas.
+  for (const element of slide.elements) {
+    renderElement(doc, autoTable, element, theme);
   }
 }
 

@@ -16,10 +16,13 @@ import type { SlideThemeTokens } from "@/lib/themes";
 import type { ContentBlock } from "@/lib/schema/slide";
 import { InlineEditable } from "../InlineEditable";
 
-// Only plain text (bullets, paragraphs - and slide title/subtitle,
-// handled by the slide components) is manually editable in this project's
-// scope. table/chart/image are read-only here by design - changing them
-// goes through chat instead.
+// Renders one content block inside its element's frame. Sizes are in em
+// (relative to the element's font size) so blocks scale with the stage.
+// Text color, weight, style and alignment are inherited from the element
+// (SlideElementView applies the element's style), so formatting from the
+// toolbar applies to bullets, paragraphs and tables alike. Bullets,
+// paragraphs and table cells are editable in place; charts and images are
+// changed through the format toolbar or chat.
 export function EditableContentBlock({
   block,
   theme,
@@ -32,10 +35,7 @@ export function EditableContentBlock({
   switch (block.type) {
     case "bullets":
       return (
-        <ul
-          className="list-disc space-y-2 pl-5"
-          style={{ color: theme.foreground }}
-        >
+        <ul className="list-disc space-y-[0.5em] pl-[1.25em]">
           {block.items.map((item, i) => (
             <li key={i}>
               <InlineEditable
@@ -60,25 +60,40 @@ export function EditableContentBlock({
           onCommit={(next) => onChange({ ...block, text: next })}
           placeholder="Paragraph text"
           ariaLabel="Paragraph"
-          style={{ color: theme.foreground }}
         />
       );
-    case "table":
+    case "table": {
+      const setHeader = (index: number) => (next: string) =>
+        onChange({
+          ...block,
+          headers: block.headers.map((h, i) => (i === index ? next : h)),
+        });
+      const setCell = (row: number, col: number) => (next: string) =>
+        onChange({
+          ...block,
+          rows: block.rows.map((r, ri) =>
+            ri === row ? r.map((c, ci) => (ci === col ? next : c)) : r,
+          ),
+        });
       return (
-        <table className="w-full border-collapse text-left text-sm">
+        <table className="w-full border-collapse text-[0.875em]">
           <thead>
             <tr>
               {block.headers.map((header, hi) => (
                 <th
                   key={hi}
-                  className="border-b px-3 py-2 font-semibold"
+                  className="border-b px-[0.75em] py-[0.5em] font-semibold [text-align:inherit]"
                   style={{
                     borderColor: theme.border,
-                    color: theme.foreground,
                     backgroundColor: theme.headerFill,
                   }}
                 >
-                  {header}
+                  <InlineEditable
+                    value={header}
+                    onCommit={setHeader(hi)}
+                    placeholder="Header"
+                    ariaLabel={`Column ${hi + 1} header`}
+                  />
                 </th>
               ))}
             </tr>
@@ -89,13 +104,15 @@ export function EditableContentBlock({
                 {row.map((cell, ci) => (
                   <td
                     key={ci}
-                    className="border-b px-3 py-2"
-                    style={{
-                      borderColor: theme.border,
-                      color: theme.foreground,
-                    }}
+                    className="border-b px-[0.75em] py-[0.5em]"
+                    style={{ borderColor: theme.border }}
                   >
-                    {cell}
+                    <InlineEditable
+                      value={cell}
+                      onCommit={setCell(ri, ci)}
+                      placeholder=" "
+                      ariaLabel={`Row ${ri + 1}, column ${ci + 1}`}
+                    />
                   </td>
                 ))}
               </tr>
@@ -103,16 +120,17 @@ export function EditableContentBlock({
           </tbody>
         </table>
       );
+    }
     case "chart": {
-      const axisTick = { fill: theme.muted, fontSize: 12 };
+      const axisTick = { fill: theme.muted, fontSize: 26 };
       const tooltipStyle = {
         background: theme.background,
         border: `1px solid ${theme.border}`,
         color: theme.foreground,
       };
       return (
-        <div className="flex flex-col gap-2">
-          <div className="h-56 w-full">
+        <div className="flex h-full flex-col gap-[0.5em]">
+          <div className="min-h-0 w-full flex-1">
             <ResponsiveContainer width="100%" height="100%">
               {block.chartType === "pie" ? (
                 <PieChart>
@@ -171,7 +189,10 @@ export function EditableContentBlock({
             </ResponsiveContainer>
           </div>
           {block.caption && (
-            <p className="text-center text-xs" style={{ color: theme.muted }}>
+            <p
+              className="text-center text-[0.75em]"
+              style={{ color: theme.muted }}
+            >
               {block.caption}
             </p>
           )}
@@ -180,25 +201,30 @@ export function EditableContentBlock({
     }
     case "image":
       return (
-        <div className="flex flex-col gap-2">
+        <div className="flex h-full flex-col gap-[0.5em]">
           {block.url ? (
             // eslint-disable-next-line @next/next/no-img-element -- data: URIs, not an optimizable remote image
             <img
               src={block.url}
               alt={block.alt}
-              className="max-h-56 w-full rounded-md object-contain"
+              className="min-h-0 w-full flex-1 rounded-xl object-contain"
             />
           ) : (
             <div
-              className="flex h-40 w-full animate-pulse flex-col items-center justify-center gap-2 rounded-md border border-dashed"
+              className="flex min-h-0 w-full flex-1 animate-pulse flex-col items-center justify-center gap-[0.5em] rounded-xl border-2 border-dashed"
               style={{ borderColor: theme.border, color: theme.muted }}
             >
-              <span className="text-2xl">🖼️</span>
-              <span className="max-w-[80%] truncate text-xs">{block.alt}</span>
+              <span className="text-[1.5em]">🖼️</span>
+              <span className="max-w-[80%] truncate text-[0.75em]">
+                {block.alt}
+              </span>
             </div>
           )}
           {block.caption && (
-            <p className="text-center text-xs" style={{ color: theme.muted }}>
+            <p
+              className="text-center text-[0.75em]"
+              style={{ color: theme.muted }}
+            >
               {block.caption}
             </p>
           )}

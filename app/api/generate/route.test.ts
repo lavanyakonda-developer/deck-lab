@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Slide } from "@/lib/schema/slide";
+import { materializeSlide } from "@/lib/slides/layoutEngine";
 
 const mockGenerateDeckStreamed = vi.fn();
 
@@ -35,18 +36,14 @@ async function readSSE(
     });
 }
 
-const slide1: Slide = {
-  id: "s1",
-  type: "title",
-  title: "Q3 Roadmap",
-  body: [],
-};
-const slide2: Slide = {
-  id: "s2",
-  type: "content",
-  title: "Objectives",
-  body: [],
-};
+const slide1: Slide = materializeSlide(
+  { type: "title", title: "Q3 Roadmap", body: [] },
+  "s1",
+);
+const slide2: Slide = materializeSlide(
+  { type: "content", title: "Objectives", body: [] },
+  "s2",
+);
 
 describe("POST /api/generate", () => {
   beforeEach(() => {

@@ -1,6 +1,10 @@
 import type { Deck } from "@/lib/schema/slide";
+import { materializeDeck } from "@/lib/slides/layoutEngine";
 
-export const seedDeck: Deck = {
+// Written as semantic content for readability, laid out by the layout
+// engine. Ids are fixed (slides, and elements below) so the server render
+// and the first client render are identical.
+const laidOut: Deck = materializeDeck({
   id: "deck-seed-1",
   title: "Sample Deck",
   slides: [
@@ -102,4 +106,15 @@ export const seedDeck: Deck = {
       ],
     },
   ],
+});
+
+export const seedDeck: Deck = {
+  ...laidOut,
+  slides: laidOut.slides.map((slide) => ({
+    ...slide,
+    elements: slide.elements.map((element, i) => ({
+      ...element,
+      id: `${slide.id}-el-${i + 1}`,
+    })),
+  })),
 };

@@ -5,7 +5,8 @@
 import { existsSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { SLIDE_THEME_NAMES, SLIDE_THEMES } from "@/lib/themes";
-import type { Deck } from "@/lib/schema/slide";
+import type { Deck, SlideContent } from "@/lib/schema/slide";
+import { materializeDeck } from "@/lib/slides/layoutEngine";
 import { downloadDeckAsPdf } from "./pdf";
 
 // Mirrors jsPDF's own hex->PDF-operator conversion (0-255 channel /255,
@@ -33,14 +34,18 @@ afterEach(() => {
   }
 });
 
-function deckWith(overrides: Partial<Deck>, fileName: string): Deck {
+// Slides are written as semantic content and laid out into elements, the
+// same way the app builds them.
+function deckWith(
+  overrides: { title?: string; slides?: (SlideContent & { id: string })[] },
+  fileName: string,
+): Deck {
   outputPaths.push(fileName);
-  return {
+  return materializeDeck({
     id: "deck-1",
-    title: "Test Deck",
-    slides: [],
-    ...overrides,
-  };
+    title: overrides.title ?? "Test Deck",
+    slides: overrides.slides ?? [],
+  });
 }
 
 describe("downloadDeckAsPdf", () => {
@@ -202,10 +207,8 @@ describe("downloadDeckAsPdf", () => {
       },
       "compare-light.pdf",
     );
-    const darkDeck = deckWith(
-      { ...lightDeck, title: "Compare Dark" },
-      "compare-dark.pdf",
-    );
+    outputPaths.push("compare-dark.pdf");
+    const darkDeck = { ...lightDeck, title: "Compare Dark" };
 
     await downloadDeckAsPdf(lightDeck, SLIDE_THEMES.light);
     await downloadDeckAsPdf(darkDeck, SLIDE_THEMES.dark);
@@ -234,4 +237,56 @@ describe("downloadDeckAsPdf", () => {
       expect(raw).toContain(rgOperator(theme.background));
     },
   );
+
+  it("paints an element's explicit fill color and draws inserted elements", async () => {
+    const deck = deckWith(
+      {
+        title: "Styled PDF",
+        slides: [{ id: "s1", type: "content", title: "T", body: [] }],
+      },
+      "styled-pdf.pdf",
+    );
+    deck.slides[0].elements.push(
+      {
+        id: "box",
+        role: "textbox",
+        frame: { x: 100, y: 600, w: 600, h: 100 },
+        style: { fill: "#215cd6", italic: true },
+        content: { type: "text", text: "Callout" },
+      },
+      {
+        id: "circle",
+        role: "decoration",
+        frame: { x: 1200, y: 600, w: 200, h: 200 },
+        content: { type: "shape", shape: "ellipse" },
+      },
+    );
+
+    await downloadDeckAsPdf(deck, SLIDE_THEMES.light);
+
+    const raw = readFileSync("styled-pdf.pdf", "latin1");
+    expect(raw).toContain(rgOperator("#215cd6"));
+    expect(raw).toContain("(Callout)");
+  });
+
+  it("produces different output when an element moves", async () => {
+    const base = deckWith(
+      {
+        title: "Move A",
+        slides: [{ id: "s1", type: "title", title: "Moving", body: [] }],
+      },
+      "move-a.pdf",
+    );
+    outputPaths.push("move-b.pdf");
+    const moved = structuredClone(base);
+    moved.title = "Move B";
+    moved.slides[0].elements[0].frame = { x: 50, y: 50, w: 400, h: 100 };
+
+    await downloadDeckAsPdf(base, SLIDE_THEMES.light);
+    await downloadDeckAsPdf(moved, SLIDE_THEMES.light);
+
+    expect(readFileSync("move-a.pdf").equals(readFileSync("move-b.pdf"))).toBe(
+      false,
+    );
+  });
 });

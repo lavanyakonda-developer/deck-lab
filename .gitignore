@@ -40,3 +40,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+# Local AI-assistant project notes (kept on disk, not published)
+CLAUDE.md

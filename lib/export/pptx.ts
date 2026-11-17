@@ -1,20 +1,20 @@
 import type PptxGenJS from "pptxgenjs";
 import type { SlideThemeTokens } from "@/lib/themes";
-import type { ContentBlock, Deck, Slide } from "@/lib/schema/slide";
-
-// 16:9 widescreen, in inches (pptxgenjs's native unit).
-const SLIDE_W = 13.33;
-const SLIDE_H = 7.5;
-const MARGIN = 0.5;
-const BODY_TOP = 1.3;
-const BODY_BOTTOM = 0.3;
-
-interface Region {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
+import type {
+  ContentBlock,
+  Deck,
+  Slide,
+  SlideElement,
+} from "@/lib/schema/slide";
+import {
+  SLIDE_H,
+  SLIDE_W,
+  isContentBlock,
+  resolveTextStyle,
+  toRegion,
+  type Region,
+  type ResolvedTextStyle,
+} from "./elementLayout";
 
 // pptxgenjs wants hex colors without a leading "#"; lib/themes stores
 // them with one (CSS convention), so every color use strips it here.
@@ -31,290 +31,211 @@ function fileNameFor(title: string): string {
   return `${slug || "deck"}.pptx`;
 }
 
-function addSlideTitle(
-  slide: PptxGenJS.Slide,
-  title: string,
-  theme: SlideThemeTokens,
-) {
-  slide.addText(title, {
-    x: MARGIN,
-    y: 0.4,
-    w: SLIDE_W - MARGIN * 2,
-    h: 0.8,
-    fontSize: 28,
-    bold: true,
-    color: hex(theme.foreground),
-  });
+const CAPTION_H = 0.3;
+
+function textOptions(text: ResolvedTextStyle) {
+  return {
+    fontSize: text.fontSize,
+    bold: text.bold,
+    italic: text.italic,
+    align: text.align,
+    color: hex(text.color),
+    margin: 0,
+  };
 }
 
-// Lays blocks out top-to-bottom within `region`, estimating each block's
-// height from its content (rows/items/fixed chart-image size) rather than
-// measuring real text - pptxgenjs has no layout engine to measure against,
-// so this is an approximation, not pixel-perfect reflow.
-function renderBlocks(
+function addCaption(
   slide: PptxGenJS.Slide,
-  blocks: ContentBlock[],
+  caption: string,
   region: Region,
   theme: SlideThemeTokens,
 ) {
-  let cursorY = region.y;
-  const bottom = region.y + region.h;
+  slide.addText(caption, {
+    x: region.x,
+    y: region.y + region.h - CAPTION_H,
+    w: region.w,
+    h: CAPTION_H,
+    fontSize: 10,
+    italic: true,
+    align: "center",
+    color: hex(theme.muted),
+  });
+}
 
-  for (const block of blocks) {
-    const remaining = bottom - cursorY;
-    if (remaining <= 0.2) break;
+// Draws one content block filling its element's region. Text stays real,
+// editable PowerPoint text; charts are native PowerPoint charts.
+function renderBlock(
+  slide: PptxGenJS.Slide,
+  block: ContentBlock,
+  region: Region,
+  text: ResolvedTextStyle,
+  theme: SlideThemeTokens,
+) {
+  switch (block.type) {
+    case "bullets":
+      slide.addText(
+        block.items.map((item) => ({
+          text: item,
+          options: { bullet: true, breakLine: true },
+        })),
+        { ...region, ...textOptions(text), valign: "top" },
+      );
+      return;
 
-    switch (block.type) {
-      case "bullets": {
-        const h = Math.min(0.32 * block.items.length + 0.1, remaining);
-        slide.addText(
-          block.items.map((item) => ({
-            text: item,
-            options: { bullet: true, breakLine: true },
-          })),
-          {
-            x: region.x,
-            y: cursorY,
-            w: region.w,
-            h,
-            fontSize: 14,
-            color: hex(theme.foreground),
-            valign: "top",
-          },
-        );
-        cursorY += h + 0.15;
-        break;
-      }
+    case "paragraph":
+      slide.addText(block.text, {
+        ...region,
+        ...textOptions(text),
+        valign: "top",
+      });
+      return;
 
-      case "paragraph": {
-        const h = Math.min(1.4, remaining);
-        slide.addText(block.text, {
-          x: region.x,
-          y: cursorY,
-          w: region.w,
-          h,
-          fontSize: 14,
-          color: hex(theme.foreground),
-          valign: "top",
-        });
-        cursorY += h + 0.15;
-        break;
-      }
-
-      case "table": {
-        const rows = [block.headers, ...block.rows];
-        const h = Math.min(0.32 * rows.length, remaining);
-        slide.addTable(
-          rows.map((row, ri) =>
-            row.map((cell) => ({
-              text: cell,
-              options: {
-                bold: ri === 0,
-                fill: ri === 0 ? { color: hex(theme.headerFill) } : undefined,
-                fontSize: 11,
-                color: hex(theme.foreground),
-              },
-            })),
-          ),
-          {
-            x: region.x,
-            y: cursorY,
-            w: region.w,
-            h,
-            border: { type: "solid", color: hex(theme.border), pt: 0.75 },
-          },
-        );
-        cursorY += h + 0.2;
-        break;
-      }
-
-      case "chart": {
-        const captionH = block.caption ? 0.35 : 0;
-        const h = Math.min(3.2, remaining - captionH);
-        slide.addChart(
-          block.chartType,
-          [
-            {
-              name: "Series 1",
-              labels: block.data.map((d) => d.label),
-              values: block.data.map((d) => d.value),
+    case "table": {
+      const fontSize = text.fontSize * 0.875;
+      const rows = [block.headers, ...block.rows];
+      slide.addTable(
+        rows.map((row, ri) =>
+          row.map((cell) => ({
+            text: cell,
+            options: {
+              bold: ri === 0 || text.bold,
+              italic: text.italic,
+              align: text.align,
+              fill: ri === 0 ? { color: hex(theme.headerFill) } : undefined,
+              fontSize,
+              color: hex(text.color),
             },
-          ],
-          {
-            x: region.x,
-            y: cursorY,
-            w: region.w,
-            h,
-            showLegend: false,
-            chartColors: theme.chartColors.map(hex),
-          },
-        );
-        cursorY += h;
-        if (block.caption) {
-          slide.addText(block.caption, {
-            x: region.x,
-            y: cursorY,
-            w: region.w,
-            h: 0.3,
-            fontSize: 10,
-            italic: true,
-            align: "center",
-            color: hex(theme.muted),
-          });
-          cursorY += 0.3;
-        }
-        cursorY += 0.15;
-        break;
-      }
+          })),
+        ),
+        {
+          x: region.x,
+          y: region.y,
+          w: region.w,
+          colW: Array(block.headers.length).fill(
+            region.w / block.headers.length,
+          ),
+          border: { type: "solid", color: hex(theme.border), pt: 0.75 },
+        },
+      );
+      return;
+    }
 
-      case "image": {
-        const captionH = block.caption ? 0.35 : 0;
-        const h = Math.min(3.2, remaining - captionH);
-        if (block.url) {
-          slide.addImage({
-            data: block.url,
-            x: region.x,
-            y: cursorY,
-            w: region.w,
-            h,
-            sizing: { type: "contain", w: region.w, h },
-          });
-        } else {
-          slide.addText(`[Image: ${block.alt}]`, {
-            x: region.x,
-            y: cursorY,
-            w: region.w,
-            h,
-            fontSize: 12,
-            italic: true,
-            align: "center",
-            valign: "middle",
-            color: hex(theme.muted),
-          });
-        }
-        cursorY += h;
-        if (block.caption) {
-          slide.addText(block.caption, {
-            x: region.x,
-            y: cursorY,
-            w: region.w,
-            h: 0.3,
-            fontSize: 10,
-            italic: true,
-            align: "center",
-            color: hex(theme.muted),
-          });
-          cursorY += 0.3;
-        }
-        cursorY += 0.15;
-        break;
+    case "chart": {
+      const chartH = region.h - (block.caption ? CAPTION_H : 0);
+      slide.addChart(
+        block.chartType,
+        [
+          {
+            name: "Series 1",
+            labels: block.data.map((d) => d.label),
+            values: block.data.map((d) => d.value),
+          },
+        ],
+        {
+          x: region.x,
+          y: region.y,
+          w: region.w,
+          h: chartH,
+          showLegend: block.chartType === "pie",
+          chartColors: theme.chartColors.map(hex),
+          catAxisLabelColor: hex(theme.muted),
+          valAxisLabelColor: hex(theme.muted),
+        },
+      );
+      if (block.caption) addCaption(slide, block.caption, region, theme);
+      return;
+    }
+
+    case "image": {
+      const imageH = region.h - (block.caption ? CAPTION_H : 0);
+      if (block.url) {
+        slide.addImage({
+          data: block.url,
+          x: region.x,
+          y: region.y,
+          w: region.w,
+          h: imageH,
+          sizing: { type: "contain", w: region.w, h: imageH },
+        });
+      } else {
+        slide.addText(`[Image: ${block.alt}]`, {
+          x: region.x,
+          y: region.y,
+          w: region.w,
+          h: imageH,
+          fontSize: 12,
+          italic: true,
+          align: "center",
+          valign: "middle",
+          color: hex(theme.muted),
+        });
       }
+      if (block.caption) addCaption(slide, block.caption, region, theme);
+      return;
     }
   }
 }
 
-function addColumnHeading(
+// Draws one element at its exact canvas position and size.
+function renderElement(
+  pres: PptxGenJS,
   slide: PptxGenJS.Slide,
-  text: string,
-  region: Region,
+  element: SlideElement,
   theme: SlideThemeTokens,
-): Region {
-  slide.addText(text.toUpperCase(), {
-    x: region.x,
-    y: region.y,
-    w: region.w,
-    h: 0.35,
-    fontSize: 11,
-    bold: true,
-    color: hex(theme.muted),
-  });
-  return { ...region, y: region.y + 0.45, h: region.h - 0.45 };
+) {
+  const region = toRegion(element.frame);
+  const text = resolveTextStyle(element, theme);
+  const { content } = element;
+
+  if (content.type === "shape") {
+    slide.addShape(
+      content.shape === "ellipse"
+        ? pres.ShapeType.ellipse
+        : pres.ShapeType.roundRect,
+      {
+        ...region,
+        rectRadius: content.shape === "ellipse" ? undefined : 0.12,
+        fill: text.fill ? { color: hex(text.fill) } : { type: "none" },
+        line: {
+          color: hex(element.style?.color ?? theme.border),
+          width: 1.5,
+        },
+      },
+    );
+    return;
+  }
+
+  // Text and block elements with a fill get a background box first.
+  if (text.fill) {
+    slide.addShape(pres.ShapeType.rect, {
+      ...region,
+      fill: { color: hex(text.fill) },
+      line: { type: "none" },
+    });
+  }
+
+  if (content.type === "text") {
+    if (!content.text) return; // empty placeholder box
+    slide.addText(text.uppercase ? content.text.toUpperCase() : content.text, {
+      ...region,
+      ...textOptions(text),
+      valign: text.valign,
+    });
+    return;
+  }
+
+  if (isContentBlock(content)) {
+    renderBlock(slide, content, region, text, theme);
+  }
 }
 
 function buildSlide(pres: PptxGenJS, slide: Slide, theme: SlideThemeTokens) {
   const pptxSlide = pres.addSlide();
   pptxSlide.background = { color: hex(theme.background) };
-  const fullRegion: Region = {
-    x: MARGIN,
-    y: BODY_TOP,
-    w: SLIDE_W - MARGIN * 2,
-    h: SLIDE_H - BODY_TOP - BODY_BOTTOM,
-  };
-
-  switch (slide.type) {
-    case "title": {
-      pptxSlide.addText(slide.title, {
-        x: MARGIN,
-        y: SLIDE_H / 2 - 0.9,
-        w: SLIDE_W - MARGIN * 2,
-        h: 1.2,
-        fontSize: 40,
-        bold: true,
-        align: "center",
-        valign: "middle",
-        color: hex(theme.foreground),
-      });
-      if (slide.subtitle) {
-        pptxSlide.addText(slide.subtitle, {
-          x: MARGIN,
-          y: SLIDE_H / 2 + 0.35,
-          w: SLIDE_W - MARGIN * 2,
-          h: 0.7,
-          fontSize: 18,
-          align: "center",
-          color: hex(theme.muted),
-        });
-      }
-      break;
-    }
-
-    case "content": {
-      addSlideTitle(pptxSlide, slide.title, theme);
-      renderBlocks(pptxSlide, slide.body, fullRegion, theme);
-      break;
-    }
-
-    case "table": {
-      addSlideTitle(pptxSlide, slide.title, theme);
-      const tableBlock = slide.body.find((block) => block.type === "table");
-      if (tableBlock) renderBlocks(pptxSlide, [tableBlock], fullRegion, theme);
-      break;
-    }
-
-    case "two-column":
-    case "comparison": {
-      addSlideTitle(pptxSlide, slide.title, theme);
-      const gap = 0.4;
-      const colW = (fullRegion.w - gap) / 2;
-      const left = slide.body.filter((block) => (block.column ?? 0) === 0);
-      const right = slide.body.filter((block) => (block.column ?? 0) === 1);
-      const [leftTitle, rightTitle] =
-        slide.layout?.columnTitles ??
-        (slide.type === "comparison" ? ["Option A", "Option B"] : []);
-
-      let leftRegion: Region = { ...fullRegion, w: colW };
-      let rightRegion: Region = {
-        ...fullRegion,
-        x: fullRegion.x + colW + gap,
-        w: colW,
-      };
-
-      if (leftTitle) {
-        leftRegion = addColumnHeading(pptxSlide, leftTitle, leftRegion, theme);
-      }
-      if (rightTitle) {
-        rightRegion = addColumnHeading(
-          pptxSlide,
-          rightTitle,
-          rightRegion,
-          theme,
-        );
-      }
-
-      renderBlocks(pptxSlide, left, leftRegion, theme);
-      renderBlocks(pptxSlide, right, rightRegion, theme);
-      break;
-    }
+  // Array order is stacking order - later elements draw on top, same as
+  // the canvas.
+  for (const element of slide.elements) {
+    renderElement(pres, pptxSlide, element, theme);
   }
 }
 

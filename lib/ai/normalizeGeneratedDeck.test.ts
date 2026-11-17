@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DeckSchema } from "@/lib/schema/slide";
+import { getSlideContent } from "@/lib/slides/layoutEngine";
 import type { GeneratedDeck } from "./deckGenerationSchema";
 import { normalizeGeneratedDeck } from "./normalizeGeneratedDeck";
 
@@ -34,13 +35,14 @@ describe("normalizeGeneratedDeck", () => {
     expect(deck.slides[0].id).toBeTruthy();
     expect(deck.slides[1].id).toBeTruthy();
     expect(deck.slides[0].id).not.toBe(deck.slides[1].id);
-    expect(deck.slides[0].subtitle).toBeUndefined();
-    expect(deck.slides[1].body[0]).toMatchObject({
+    const [first, second] = deck.slides.map(getSlideContent);
+    expect(first.subtitle).toBeUndefined();
+    expect(second.body[0]).toMatchObject({
       type: "bullets",
       items: ["a", "b"],
       column: 0,
     });
-    expect(deck.slides[1].layout).toEqual({ columnTitles: ["Left", "Right"] });
+    expect(second.layout).toEqual({ columnTitles: ["Left", "Right"] });
 
     const validation = DeckSchema.safeParse(deck);
     expect(validation.success).toBe(true);
@@ -61,6 +63,6 @@ describe("normalizeGeneratedDeck", () => {
     };
 
     const deck = normalizeGeneratedDeck(generated);
-    expect(deck.slides[0].layout).toBeUndefined();
+    expect(getSlideContent(deck.slides[0]).layout).toBeUndefined();
   });
 });

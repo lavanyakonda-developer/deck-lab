@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { DeckSchema } from "@/lib/schema/slide";
+import { getSlideTitle } from "@/lib/slides/layoutEngine";
 import { serializeDeckContext } from "@/lib/ai/deckContext";
 import { generateDeckStreamed } from "@/lib/ai/generateDeckStream";
 import { getOpenAIClient, OPENAI_MODEL } from "@/lib/ai/openaiClient";
@@ -211,7 +212,7 @@ export async function POST(request: Request) {
           );
           const reply = `Generated "${generatedDeck.title}" — ${generatedDeck.slides.length} slide${
             generatedDeck.slides.length === 1 ? "" : "s"
-          }: ${generatedDeck.slides.map((s) => s.title).join(", ")}.`;
+          }: ${generatedDeck.slides.map(getSlideTitle).join(", ")}.`;
           emit("done", { reply, generatedDeck });
         } else {
           const trimmedText = textContent.trim();

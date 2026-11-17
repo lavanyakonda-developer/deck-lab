@@ -17,7 +17,7 @@ import { useDeckStore } from "@/store/deckStore";
 const imageActions = {
   getSlide: (id: string) =>
     useDeckStore.getState().deck.slides.find((slide) => slide.id === id),
-  updateSlide: useDeckStore.getState().updateSlide,
+  updateElement: useDeckStore.getState().updateElement,
 };
 
 // Scans the whole current deck for image blocks the model requested but

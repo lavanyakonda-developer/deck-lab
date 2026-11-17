@@ -1,24 +1,43 @@
-import type { ContentBlock, Slide } from "@/lib/schema/slide";
+import type {
+  ContentBlock,
+  ElementContent,
+  Slide,
+  SlideElement,
+} from "@/lib/schema/slide";
+
+type ImageContent = Extract<ContentBlock, { type: "image" }>;
 
 interface DeckImageActions {
   getSlide: (id: string) => Slide | undefined;
-  updateSlide: (id: string, patch: { body: ContentBlock[] }) => void;
+  updateElement: (
+    slideId: string,
+    elementId: string,
+    content: ElementContent,
+  ) => void;
 }
 
-// Scans one slide for image blocks the model requested (via "alt") but
+function isPendingImage(
+  element: SlideElement,
+  alt?: string,
+): element is SlideElement & { content: ImageContent } {
+  return (
+    element.content.type === "image" &&
+    element.content.url === null &&
+    (alt === undefined || element.content.alt === alt)
+  );
+}
+
+// Scans one slide for image elements the model requested (via "alt") but
 // that haven't been generated yet.
 export function findPendingImageAlts(slide: Slide): string[] {
-  return slide.body
-    .filter(
-      (block): block is Extract<ContentBlock, { type: "image" }> =>
-        block.type === "image" && block.url === null,
-    )
-    .map((block) => block.alt);
+  return slide.elements
+    .filter((element) => isPendingImage(element))
+    .map((element) => (element.content as ImageContent).alt);
 }
 
-// Generates one image and, on success, patches it into the matching block.
-// Never throws - a failed/skipped generation just leaves url null, which
-// EditableContentBlock already renders as a graceful placeholder.
+// Generates one image and, on success, patches it into the matching
+// element. Never throws - a failed/skipped generation just leaves url
+// null, which the canvas already renders as a graceful placeholder.
 export async function generateImageForSlide(
   actions: DeckImageActions,
   slideId: string,
@@ -40,10 +59,9 @@ export async function generateImageForSlide(
   }
 }
 
-// Matches by (slideId, alt, url === null) rather than a fixed body index,
-// since the slide may have been edited elsewhere while generation was in
-// flight - this survives unrelated reordering/edits to other blocks on
-// the same slide, though not a rename/removal of this exact block.
+// Matches by (slideId, alt, url === null) rather than a fixed element id
+// captured up front, since the slide may have been edited (or re-laid out)
+// while generation was in flight.
 function applyImageUrl(
   actions: DeckImageActions,
   slideId: string,
@@ -52,13 +70,7 @@ function applyImageUrl(
 ): void {
   const slide = actions.getSlide(slideId);
   if (!slide) return; // slide was deleted meanwhile
-  const index = slide.body.findIndex(
-    (block) =>
-      block.type === "image" && block.alt === alt && block.url === null,
-  );
-  if (index === -1) return; // block was edited/removed meanwhile
-  const body = slide.body.map((block, i) =>
-    i === index ? { ...block, url } : block,
-  );
-  actions.updateSlide(slideId, { body });
+  const element = slide.elements.find((el) => isPendingImage(el, alt));
+  if (!element) return; // image was edited/removed meanwhile
+  actions.updateElement(slideId, element.id, { ...element.content, url });
 }
