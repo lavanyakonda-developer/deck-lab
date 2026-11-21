@@ -129,10 +129,10 @@ function buildDeckStore() {
         slideTheme: DEFAULT_SLIDE_THEME,
         history: createHistoryState<DeckSnapshot>(),
 
-        // Manual edits and AI tool calls both go through these same actions
-        // (see CLAUDE.md) - so pushing the pre-mutation snapshot here, once
-        // per action, is enough to make undo/redo cover both sources with no
-        // separate mutation path, per Phase 8's requirement.
+        // Manual edits and AI tool calls both go through these same actions,
+        // so pushing the pre-mutation snapshot here, once per action, is
+        // enough to make undo/redo cover both sources with no separate
+        // mutation path.
         loadDeck: (deck) =>
           set((state) => ({
             deck,
@@ -300,11 +300,19 @@ function buildDeckStore() {
             };
           }),
 
+        // Only accepts a full permutation of the current slide ids - a
+        // partial, duplicated, or unknown id list (e.g. a malformed AI
+        // reorder_slides call) is ignored rather than dropping slides.
         reorderSlides: (orderedIds) =>
           set((state) => {
             const byId = new Map(
               state.deck.slides.map((slide) => [slide.id, slide]),
             );
+            const isPermutation =
+              orderedIds.length === byId.size &&
+              new Set(orderedIds).size === byId.size &&
+              orderedIds.every((id) => byId.has(id));
+            if (!isPermutation) return state;
             const slides = orderedIds.map((id) => byId.get(id)!);
             return {
               deck: { ...state.deck, slides },

@@ -10,21 +10,30 @@ import { DECK_GENERATION_SYSTEM_PROMPT } from "./generateDeck";
 import { normalizeBlock, normalizeLayout } from "./normalize";
 import { getOpenAIClient, OPENAI_MODEL } from "./openaiClient";
 import { DeckSlideStreamParser } from "./streamParser";
+import { toTokenUsage, type TokenUsage } from "./usage";
+
+export interface StreamedDeckResult {
+  deck: Deck;
+  // Undefined only if OpenAI didn't report usage on the stream.
+  usage: TokenUsage | undefined;
+}
 
 // Streaming counterpart to generateDeckFromPrompt: emits each slide via
 // onSlide as soon as it's fully streamed, parsed, and validated - well
 // before the whole response finishes - then resolves with the complete
-// Deck. The returned Deck reuses the exact same Slide objects (same ids)
-// already handed to onSlide, so a caller applying them live never sees a
-// second, different set of slides once the promise resolves.
+// Deck plus the call's token usage. The returned Deck reuses the exact same
+// Slide objects (same ids) already handed to onSlide, so a caller applying
+// them live never sees a second, different set of slides once the promise
+// resolves.
 export async function generateDeckStreamed(
   prompt: string,
   onSlide: (slide: Slide) => void,
-): Promise<Deck> {
+): Promise<StreamedDeckResult> {
   const client = getOpenAIClient();
   const parser = new DeckSlideStreamParser();
   const slides: Slide[] = [];
   let raw = "";
+  let usage: TokenUsage | undefined;
 
   const stream = await client.chat.completions.create({
     model: OPENAI_MODEL,
@@ -37,9 +46,12 @@ export async function generateDeckStreamed(
       json_schema: deckJsonSchema,
     },
     stream: true,
+    stream_options: { include_usage: true },
   });
 
   for await (const chunk of stream) {
+    // Usage arrives on the final chunk, which has no choices.
+    usage = toTokenUsage(chunk.usage) ?? usage;
     const delta = chunk.choices[0]?.delta?.content;
     if (!delta) continue;
     raw += delta;
@@ -81,8 +93,11 @@ export async function generateDeckStreamed(
   }
 
   return {
-    id: createId("deck"),
-    title: generated.data.title,
-    slides,
+    deck: {
+      id: createId("deck"),
+      title: generated.data.title,
+      slides,
+    },
+    usage,
   };
 }

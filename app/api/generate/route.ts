@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateDeckStreamed } from "@/lib/ai/generateDeckStream";
 import { formatSSE } from "@/lib/ai/sse";
+import { buildUsageReport } from "@/lib/ai/usage";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -28,10 +29,20 @@ export async function POST(request: Request) {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        const deck = await generateDeckStreamed(trimmedPrompt, (slide) => {
-          controller.enqueue(encoder.encode(formatSSE("slide", slide)));
-        });
-        controller.enqueue(encoder.encode(formatSSE("done", { deck })));
+        const { deck, usage } = await generateDeckStreamed(
+          trimmedPrompt,
+          (slide) => {
+            controller.enqueue(encoder.encode(formatSSE("slide", slide)));
+          },
+        );
+        controller.enqueue(
+          encoder.encode(
+            formatSSE("done", {
+              deck,
+              usage: buildUsageReport({ generateDeck: usage }),
+            }),
+          ),
+        );
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to generate deck";

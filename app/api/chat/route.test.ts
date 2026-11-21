@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Deck, Slide } from "@/lib/schema/slide";
 
 const mockCreate = vi.fn();
@@ -66,12 +66,18 @@ async function readSSE(
 
 // Simulates a realistic streaming response: text arrives in fragments,
 // each tool call's arguments dribble in across several chunks.
-function makeChunkStream(deltas: Array<Record<string, unknown>>) {
+function makeChunkStream(
+  deltas: Array<Record<string, unknown>>,
+  usage?: Record<string, number>,
+) {
   return {
     async *[Symbol.asyncIterator]() {
       for (const delta of deltas) {
         yield { choices: [{ delta }] };
       }
+      // With stream_options.include_usage, usage arrives on a final chunk
+      // that has no choices.
+      if (usage) yield { choices: [], usage };
     },
   };
 }
@@ -272,7 +278,10 @@ describe("POST /api/chat", () => {
     });
     mockGenerateDeckStreamed.mockImplementation(async (_prompt, onSlide) => {
       for (const slide of generated.slides) onSlide(slide);
-      return generated;
+      return {
+        deck: generated,
+        usage: { promptTokens: 300, completionTokens: 900, totalTokens: 1200 },
+      };
     });
 
     const response = await POST(
@@ -358,6 +367,92 @@ describe("POST /api/chat", () => {
     expect(callArgs.messages.at(-1)).toEqual({
       role: "user",
       content: "latest message",
+    });
+  });
+
+  describe("CHAT_MAX_HISTORY_MESSAGES override", () => {
+    const longHistory = Array.from({ length: 30 }, (_, i) => ({
+      role: i % 2 === 0 ? ("user" as const) : ("assistant" as const),
+      content: `turn ${i}`,
+    }));
+    // system + reminder system message + current user message
+    const NON_HISTORY_MESSAGES = 3;
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("applies a numeric cap from the env", async () => {
+      vi.stubEnv("CHAT_MAX_HISTORY_MESSAGES", "4");
+      mockCreate.mockResolvedValue(makeChunkStream([]));
+      await POST(makeRequest({ message: "hi", deck, history: longHistory }));
+      const { messages } = mockCreate.mock.calls[0][0];
+      expect(messages.length - NON_HISTORY_MESSAGES).toBe(4);
+      expect(messages[1]).toEqual({ role: "user", content: "turn 26" });
+    });
+
+    it("sends the full history when set to 0", async () => {
+      vi.stubEnv("CHAT_MAX_HISTORY_MESSAGES", "0");
+      mockCreate.mockResolvedValue(makeChunkStream([]));
+      await POST(makeRequest({ message: "hi", deck, history: longHistory }));
+      const { messages } = mockCreate.mock.calls[0][0];
+      expect(messages.length - NON_HISTORY_MESSAGES).toBe(30);
+    });
+  });
+
+  it("requests stream usage and reports it in the done event", async () => {
+    mockCreate.mockResolvedValue(
+      makeChunkStream(toolCallDeltas(0, "delete_slide", { id: "b" }), {
+        prompt_tokens: 1000,
+        completion_tokens: 15,
+        total_tokens: 1015,
+      }),
+    );
+
+    const response = await POST(
+      makeRequest({ message: "delete slide 2", deck }),
+    );
+    const events = await readSSE(response);
+
+    expect(mockCreate.mock.calls[0][0].stream_options).toEqual({
+      include_usage: true,
+    });
+    const chat = {
+      promptTokens: 1000,
+      completionTokens: 15,
+      totalTokens: 1015,
+    };
+    expect(events.at(-1)).toEqual({
+      event: "done",
+      data: { reply: "Done — deleted a slide.", usage: { chat, total: chat } },
+    });
+  });
+
+  it("reports both calls' usage when the turn triggers generate_deck", async () => {
+    mockCreate.mockResolvedValue(
+      makeChunkStream(
+        toolCallDeltas(0, "generate_deck", { prompt: "A deck about tea" }),
+        { prompt_tokens: 1000, completion_tokens: 20, total_tokens: 1020 },
+      ),
+    );
+    mockGenerateDeckStreamed.mockResolvedValue({
+      deck: materializeDeck({ id: "deck-tea", title: "Tea", slides: [] }),
+      usage: { promptTokens: 300, completionTokens: 900, totalTokens: 1200 },
+    });
+
+    const response = await POST(
+      makeRequest({ message: "A deck about tea", deck }),
+    );
+    const events = await readSSE(response);
+
+    expect((events.at(-1)!.data as { usage: unknown }).usage).toEqual({
+      chat: { promptTokens: 1000, completionTokens: 20, totalTokens: 1020 },
+      generateDeck: {
+        promptTokens: 300,
+        completionTokens: 900,
+        totalTokens: 1200,
+      },
+      total: { promptTokens: 1300, completionTokens: 920, totalTokens: 2220 },
     });
   });
 

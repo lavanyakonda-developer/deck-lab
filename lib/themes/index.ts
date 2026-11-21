@@ -1,4 +1,4 @@
-// Slide-content visual themes (Phase 9, N1) - deliberately presentation
+// Slide-content visual themes - deliberately presentation
 // only, not part of the Deck/Slide schema (lib/schema/slide.ts). Applied
 // at the render layer everywhere a slide actually renders: the live
 // canvas/thumbnails (React components, via inline styles built from these

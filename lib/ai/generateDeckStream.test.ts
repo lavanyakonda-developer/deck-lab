@@ -12,12 +12,15 @@ vi.mock("./openaiClient", () => ({
 
 import { generateDeckStreamed } from "./generateDeckStream";
 
-function makeChunkStream(deltas: string[]) {
+function makeChunkStream(deltas: string[], usage?: Record<string, number>) {
   return {
     async *[Symbol.asyncIterator]() {
       for (const delta of deltas) {
         yield { choices: [{ delta: { content: delta } }] };
       }
+      // With stream_options.include_usage, usage arrives on a final chunk
+      // that has no choices.
+      if (usage) yield { choices: [], usage };
     },
   };
 }
@@ -59,7 +62,7 @@ describe("generateDeckStreamed", () => {
     mockCreate.mockResolvedValue(makeChunkStream(chunkString(deckJson, 9)));
 
     const emitted: string[] = [];
-    const deck = await generateDeckStreamed("Create a deck", (slide) => {
+    const { deck } = await generateDeckStreamed("Create a deck", (slide) => {
       emitted.push(getSlideTitle(slide));
     });
 
@@ -73,7 +76,7 @@ describe("generateDeckStreamed", () => {
     mockCreate.mockResolvedValue(makeChunkStream(chunkString(deckJson, 13)));
 
     const streamedIds: string[] = [];
-    const deck = await generateDeckStreamed("Create a deck", (slide) => {
+    const { deck } = await generateDeckStreamed("Create a deck", (slide) => {
       streamedIds.push(slide.id);
     });
 
@@ -83,12 +86,34 @@ describe("generateDeckStreamed", () => {
   it("normalizes streamed slides (null column/layout become undefined)", async () => {
     mockCreate.mockResolvedValue(makeChunkStream([deckJson]));
 
-    const deck = await generateDeckStreamed("Create a deck", () => {});
+    const { deck } = await generateDeckStreamed("Create a deck", () => {});
 
     expect(getSlideContent(deck.slides[1]).body[0]).toMatchObject({
       type: "bullets",
       items: ["Grow", "Ship"],
       column: undefined,
+    });
+  });
+
+  it("requests usage on the stream and returns it alongside the deck", async () => {
+    mockCreate.mockResolvedValue(
+      makeChunkStream(chunkString(deckJson, 9), {
+        prompt_tokens: 500,
+        completion_tokens: 200,
+        total_tokens: 700,
+      }),
+    );
+
+    const { usage } = await generateDeckStreamed("Create a deck", () => {});
+
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({
+      stream: true,
+      stream_options: { include_usage: true },
+    });
+    expect(usage).toEqual({
+      promptTokens: 500,
+      completionTokens: 200,
+      totalTokens: 700,
     });
   });
 

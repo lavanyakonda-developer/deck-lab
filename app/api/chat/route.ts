@@ -4,6 +4,7 @@ import { DeckSchema } from "@/lib/schema/slide";
 import { getSlideTitle } from "@/lib/slides/layoutEngine";
 import { serializeDeckContext } from "@/lib/ai/deckContext";
 import { generateDeckStreamed } from "@/lib/ai/generateDeckStream";
+import { getMaxHistoryMessages, trimHistory } from "@/lib/ai/historyLimit";
 import { getOpenAIClient, OPENAI_MODEL } from "@/lib/ai/openaiClient";
 import { formatSSE } from "@/lib/ai/sse";
 import { IncrementalJsonObjectExtractor } from "@/lib/ai/streamParser";
@@ -12,20 +13,16 @@ import {
   validateToolCall,
   type ValidatedToolCall,
 } from "@/lib/ai/tools";
+import {
+  buildUsageReport,
+  toTokenUsage,
+  type TokenUsage,
+} from "@/lib/ai/usage";
 
 const HistoryMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
   content: z.string(),
 });
-
-// Caps how much prior conversation gets resent to OpenAI on every request -
-// the chat UI itself always keeps the full history, this only bounds the
-// outgoing OpenAI request. Keeps token usage/cost from growing unbounded as
-// a session goes on, and limits how many repetitive prior turns (e.g. many
-// "Done — ..." confirmations) can accumulate in-context, which is believed
-// to contribute to the model hallucinating a fake confirmation instead of
-// actually calling a tool in long sessions (see README's Known issues).
-const MAX_HISTORY_MESSAGES = 10;
 
 const SYSTEM_INSTRUCTIONS = `You are the AI behind a presentation deck builder. You have tools to add, update, delete, and reorder slides, to change a slide's layout/type, and to generate a brand new deck from scratch.
 
@@ -106,8 +103,9 @@ export async function POST(request: Request) {
   // history is optional (older clients / first-ever call may omit it) -
   // default to no prior turns rather than rejecting the request.
   const historyResult = HistoryMessageSchema.array().safeParse(history ?? []);
-  const priorTurns = (historyResult.success ? historyResult.data : []).slice(
-    -MAX_HISTORY_MESSAGES,
+  const priorTurns = trimHistory(
+    historyResult.success ? historyResult.data : [],
+    getMaxHistoryMessages(),
   );
   const trimmedMessage = message.trim();
   const currentSlideId =
@@ -156,9 +154,11 @@ export async function POST(request: Request) {
           messages,
           tools: TOOL_DEFINITIONS,
           stream: true,
+          stream_options: { include_usage: true },
         });
 
         let textContent = "";
+        let chatUsage: TokenUsage | undefined;
         let generateDeckPrompt: string | null = null;
         const appliedTools: ValidatedToolCall[] = [];
         const toolCallState = new Map<
@@ -167,6 +167,8 @@ export async function POST(request: Request) {
         >();
 
         for await (const chunk of chatStream) {
+          // Usage arrives on the final chunk, which has no choices.
+          chatUsage = toTokenUsage(chunk.usage) ?? chatUsage;
           const delta = chunk.choices[0]?.delta;
           if (!delta) continue;
 
@@ -206,14 +208,21 @@ export async function POST(request: Request) {
         }
 
         if (generateDeckPrompt) {
-          const generatedDeck = await generateDeckStreamed(
-            generateDeckPrompt,
-            (slide) => emit("slide", slide),
-          );
+          const { deck: generatedDeck, usage: generateDeckUsage } =
+            await generateDeckStreamed(generateDeckPrompt, (slide) =>
+              emit("slide", slide),
+            );
           const reply = `Generated "${generatedDeck.title}" — ${generatedDeck.slides.length} slide${
             generatedDeck.slides.length === 1 ? "" : "s"
           }: ${generatedDeck.slides.map(getSlideTitle).join(", ")}.`;
-          emit("done", { reply, generatedDeck });
+          emit("done", {
+            reply,
+            generatedDeck,
+            usage: buildUsageReport({
+              chat: chatUsage,
+              generateDeck: generateDeckUsage,
+            }),
+          });
         } else {
           const trimmedText = textContent.trim();
           // The model sometimes hallucinates a fake confirmation instead of
@@ -227,7 +236,10 @@ export async function POST(request: Request) {
           const reply = isHallucinatedActionClaim
             ? "I couldn't make this change - could you try rephrasing your request?"
             : trimmedText || summarizeToolCalls(appliedTools);
-          emit("done", { reply });
+          emit("done", {
+            reply,
+            usage: buildUsageReport({ chat: chatUsage }),
+          });
         }
       } catch (error) {
         const errorMessage =

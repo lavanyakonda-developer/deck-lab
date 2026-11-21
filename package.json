@@ -10,7 +10,11 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "eval:edit": "tsx evals/runEditEval.ts",
+    "eval:baseline": "tsx evals/runBaseline.ts",
+    "eval:generation": "tsx evals/runGeneration.ts",
+    "eval:context": "tsx evals/runContext.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -39,6 +43,7 @@
     "jsdom": "^29.1.1",
     "prettier": "^3.9.6",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^4.1.11"
   }

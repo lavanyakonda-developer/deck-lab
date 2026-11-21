@@ -54,7 +54,10 @@ describe("POST /api/generate", () => {
     mockGenerateDeckStreamed.mockImplementation(async (_prompt, onSlide) => {
       onSlide(slide1);
       onSlide(slide2);
-      return { id: "deck-1", title: "Q3 Roadmap", slides: [slide1, slide2] };
+      return {
+        deck: { id: "deck-1", title: "Q3 Roadmap", slides: [slide1, slide2] },
+        usage: { promptTokens: 400, completionTokens: 300, totalTokens: 700 },
+      };
     });
 
     const response = await POST(
@@ -71,6 +74,18 @@ describe("POST /api/generate", () => {
         event: "done",
         data: {
           deck: { id: "deck-1", title: "Q3 Roadmap", slides: [slide1, slide2] },
+          usage: {
+            generateDeck: {
+              promptTokens: 400,
+              completionTokens: 300,
+              totalTokens: 700,
+            },
+            total: {
+              promptTokens: 400,
+              completionTokens: 300,
+              totalTokens: 700,
+            },
+          },
         },
       },
     ]);
@@ -78,9 +93,8 @@ describe("POST /api/generate", () => {
 
   it("trims the prompt before passing it along", async () => {
     mockGenerateDeckStreamed.mockImplementation(async () => ({
-      id: "deck-1",
-      title: "X",
-      slides: [],
+      deck: { id: "deck-1", title: "X", slides: [] },
+      usage: undefined,
     }));
     await POST(makeRequest({ prompt: "  Create a deck  " }));
     expect(mockGenerateDeckStreamed).toHaveBeenCalledWith(

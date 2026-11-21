@@ -124,6 +124,22 @@ describe("deckStore", () => {
     ).toEqual(before);
   });
 
+  it.each([
+    ["duplicated", ["a", "a", "b"]],
+    ["unknown", ["a", "b", "zzz"]],
+  ])(
+    "reorderSlides ignores a list with %s ids and adds no undo step",
+    (_label, ids) => {
+      const before = useDeckStore.getState().deck.slides.map((s) => s.id);
+      const undoDepth = useDeckStore.getState().history.undoStack.length;
+      useDeckStore.getState().reorderSlides(ids);
+      expect(useDeckStore.getState().deck.slides.map((s) => s.id)).toEqual(
+        before,
+      );
+      expect(useDeckStore.getState().history.undoStack.length).toBe(undoDepth);
+    },
+  );
+
   it("changeLayout updates type and merges layout hints incrementally", () => {
     useDeckStore.getState().changeLayout("b", {
       type: "two-column",

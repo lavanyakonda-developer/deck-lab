@@ -1,7 +1,7 @@
 // Shared building blocks for hand-written (not zod-derived) OpenAI JSON
 // Schemas - kept within the subset strict mode supports (no min/max
 // length or item-count constraints). Used by both deckJsonSchema.ts
-// (Phase 3, bulk generation) and tools.ts (Phase 4, tool-call arguments).
+// (bulk generation) and tools.ts (tool-call arguments).
 
 export const slideTypeEnumJsonSchema = {
   type: "string",

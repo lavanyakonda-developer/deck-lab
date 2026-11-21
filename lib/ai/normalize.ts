@@ -3,7 +3,7 @@ import type { ContentBlock, LayoutHints } from "@/lib/schema/slide";
 // Converts the "nullable instead of optional" shape OpenAI's strict mode
 // requires (see deckGenerationSchema.ts / tools.ts) back into our
 // canonical optional-field shape. Shared by normalizeGeneratedDeck.ts
-// (Phase 3) and applyToolCalls.ts (Phase 4).
+// (bulk generation) and applyToolCalls.ts (tool calls).
 
 export function normalizeBlock(block: {
   type: string;
