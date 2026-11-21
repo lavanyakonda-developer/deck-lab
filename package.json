@@ -11,10 +11,10 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "eval:edit": "tsx evals/runEditEval.ts",
-    "eval:baseline": "tsx evals/runBaseline.ts",
-    "eval:generation": "tsx evals/runGeneration.ts",
-    "eval:context": "tsx evals/runContext.ts"
+    "eval:edit": "tsx --env-file=.env.local evals/runEditEval.ts",
+    "eval:baseline": "tsx --env-file=.env.local evals/runBaseline.ts",
+    "eval:generation": "tsx --env-file=.env.local evals/runGeneration.ts",
+    "eval:context": "tsx --env-file=.env.local evals/runContext.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -1,0 +1,424 @@
+[
+  {
+    "id": "number-concise-2",
+    "category": "update-by-number",
+    "message": "Make slide 2 more concise",
+    "expect": { "tool": "update_slide", "slideId": "slide-2" }
+  },
+  {
+    "id": "number-retitle-3",
+    "category": "update-by-number",
+    "message": "Change the title of slide 3 to 'Schemas Are Contracts'",
+    "expect": { "tool": "update_slide", "slideId": "slide-3" }
+  },
+  {
+    "id": "number-add-bullet-2",
+    "category": "update-by-number",
+    "message": "Add a bullet about undo/redo support to slide 2",
+    "expect": { "tool": "update_slide", "slideId": "slide-2" }
+  },
+  {
+    "id": "number-rewrite-column-5",
+    "category": "update-by-number",
+    "message": "On slide 5, rewrite the right-hand paragraph to be more persuasive",
+    "expect": { "tool": "update_slide", "slideId": "slide-5" }
+  },
+  {
+    "id": "number-subtitle-1",
+    "category": "update-by-number",
+    "message": "Change the subtitle on slide 1 to 'Built with Next.js and OpenAI'",
+    "expect": { "tool": "update_slide", "slideId": "slide-1" }
+  },
+  {
+    "id": "number-table-row-6",
+    "category": "update-by-number",
+    "message": "Add a row for 'chart' with purpose 'Data visualization' to the table on slide 6",
+    "expect": { "tool": "update_slide", "slideId": "slide-6" }
+  },
+  {
+    "id": "title-expand-paragraph",
+    "category": "update-by-title",
+    "message": "In the 'Why A Schema Matters' slide, expand the paragraph into two sentences",
+    "expect": { "tool": "update_slide", "slideId": "slide-3" }
+  },
+  {
+    "id": "title-rename-table-slide",
+    "category": "update-by-title",
+    "message": "Rename the 'Slide Types At A Glance' slide to 'Supported Layouts'",
+    "expect": { "tool": "update_slide", "slideId": "slide-6" }
+  },
+  {
+    "id": "title-add-to-column",
+    "category": "update-by-title",
+    "message": "On the manual vs AI-driven edits slide, add 'Undo support' to the manual column",
+    "expect": { "tool": "update_slide", "slideId": "slide-4" }
+  },
+  {
+    "id": "title-fix-subtitle",
+    "category": "update-by-title",
+    "message": "On the title slide, change the subtitle to 'An AI presentation builder'",
+    "expect": { "tool": "update_slide", "slideId": "slide-1" }
+  },
+  {
+    "id": "title-punchier-comparison",
+    "category": "update-by-title",
+    "message": "Make the text on the full regeneration vs targeted patches slide punchier",
+    "expect": { "tool": "update_slide", "slideId": "slide-5" }
+  },
+  {
+    "id": "title-remove-bullet",
+    "category": "update-by-title",
+    "message": "Remove the third bullet from 'What This Deck Demonstrates'",
+    "expect": { "tool": "update_slide", "slideId": "slide-2" }
+  },
+  {
+    "id": "add-after-3",
+    "category": "add",
+    "message": "Add a slide about pricing after slide 3",
+    "expect": { "tool": "add_slide", "position": 4 }
+  },
+  {
+    "id": "add-at-start",
+    "category": "add",
+    "message": "Insert a new slide at the very beginning introducing the team",
+    "expect": { "tool": "add_slide", "position": 1 }
+  },
+  {
+    "id": "add-at-end",
+    "category": "add",
+    "message": "Add a closing 'Questions?' slide at the end",
+    "expect": { "tool": "add_slide", "position": "end" }
+  },
+  {
+    "id": "add-as-second",
+    "category": "add",
+    "message": "Add a slide comparing React and Vue as the second slide",
+    "expect": { "tool": "add_slide", "position": 2 }
+  },
+  {
+    "id": "add-chart-before-table",
+    "category": "add",
+    "message": "Add a slide with a bar chart of monthly active users right before the table slide",
+    "expect": { "tool": "add_slide", "position": 6 }
+  },
+  {
+    "id": "delete-by-number",
+    "category": "delete",
+    "message": "Delete slide 4",
+    "expect": { "tool": "delete_slide", "slideId": "slide-4" }
+  },
+  {
+    "id": "delete-by-title",
+    "category": "delete",
+    "message": "Remove the slide titled 'Why A Schema Matters'",
+    "expect": { "tool": "delete_slide", "slideId": "slide-3" }
+  },
+  {
+    "id": "delete-last",
+    "category": "delete",
+    "message": "Get rid of the last slide",
+    "expect": { "tool": "delete_slide", "slideId": "slide-6" }
+  },
+  {
+    "id": "delete-by-description",
+    "category": "delete",
+    "message": "Delete the comparison slide",
+    "expect": { "tool": "delete_slide", "slideId": "slide-5" }
+  },
+  {
+    "id": "reorder-move-to-second",
+    "category": "reorder",
+    "message": "Move slide 6 to the second position",
+    "expect": {
+      "tool": "reorder_slides",
+      "order": [
+        "slide-1",
+        "slide-6",
+        "slide-2",
+        "slide-3",
+        "slide-4",
+        "slide-5"
+      ]
+    }
+  },
+  {
+    "id": "reorder-swap",
+    "category": "reorder",
+    "message": "Swap slides 2 and 3",
+    "expect": {
+      "tool": "reorder_slides",
+      "order": [
+        "slide-1",
+        "slide-3",
+        "slide-2",
+        "slide-4",
+        "slide-5",
+        "slide-6"
+      ]
+    }
+  },
+  {
+    "id": "reorder-title-to-end",
+    "category": "reorder",
+    "message": "Move the title slide to the end",
+    "expect": {
+      "tool": "reorder_slides",
+      "order": [
+        "slide-2",
+        "slide-3",
+        "slide-4",
+        "slide-5",
+        "slide-6",
+        "slide-1"
+      ]
+    }
+  },
+  {
+    "id": "reorder-by-title",
+    "category": "reorder",
+    "message": "Make 'Why A Schema Matters' the last slide",
+    "expect": {
+      "tool": "reorder_slides",
+      "order": [
+        "slide-1",
+        "slide-2",
+        "slide-4",
+        "slide-5",
+        "slide-6",
+        "slide-3"
+      ]
+    }
+  },
+  {
+    "id": "layout-two-column-3",
+    "category": "change-layout",
+    "message": "Change slide 3 to a two-column layout",
+    "expect": {
+      "tools": [{ "tool": "change_layout", "slideId": "slide-3" }],
+      "optional": [{ "tool": "update_slide", "slideId": "slide-3" }]
+    }
+  },
+  {
+    "id": "layout-comparison-4",
+    "category": "change-layout",
+    "message": "Make slide 4 a comparison slide",
+    "expect": {
+      "tools": [{ "tool": "change_layout", "slideId": "slide-4" }],
+      "optional": [{ "tool": "update_slide", "slideId": "slide-4" }]
+    }
+  },
+  {
+    "id": "layout-content-5",
+    "category": "change-layout",
+    "message": "Turn slide 5 into a plain single-column content slide",
+    "expect": {
+      "tools": [{ "tool": "change_layout", "slideId": "slide-5" }],
+      "optional": [{ "tool": "update_slide", "slideId": "slide-5" }]
+    }
+  },
+  {
+    "id": "layout-by-title",
+    "category": "change-layout",
+    "message": "Change the layout of 'What This Deck Demonstrates' to two columns",
+    "expect": {
+      "tools": [{ "tool": "change_layout", "slideId": "slide-2" }],
+      "optional": [{ "tool": "update_slide", "slideId": "slide-2" }]
+    }
+  },
+  {
+    "id": "table-from-bullets-2",
+    "category": "bullets-to-table",
+    "message": "Turn the bullets on slide 2 into a table",
+    "expect": {
+      "tools": [{ "tool": "update_slide", "slideId": "slide-2" }],
+      "optional": [{ "tool": "change_layout", "slideId": "slide-2" }],
+      "resultHasBlock": { "slideId": "slide-2", "type": "table" }
+    }
+  },
+  {
+    "id": "table-from-columns-4",
+    "category": "bullets-to-table",
+    "message": "Convert the two bullet columns on slide 4 into a single table comparing them",
+    "expect": {
+      "tools": [{ "tool": "update_slide", "slideId": "slide-4" }],
+      "optional": [{ "tool": "change_layout", "slideId": "slide-4" }],
+      "resultHasBlock": { "slideId": "slide-4", "type": "table" }
+    }
+  },
+  {
+    "id": "table-from-bullets-by-title",
+    "category": "bullets-to-table",
+    "message": "Show the bullets on the 'What This Deck Demonstrates' slide as a table instead",
+    "expect": {
+      "tools": [{ "tool": "update_slide", "slideId": "slide-2" }],
+      "optional": [{ "tool": "change_layout", "slideId": "slide-2" }],
+      "resultHasBlock": { "slideId": "slide-2", "type": "table" }
+    }
+  },
+  {
+    "id": "multi-delete-and-retitle",
+    "category": "multi-step",
+    "message": "Delete slide 5 and change slide 3's title to 'Schema First'",
+    "expect": {
+      "tools": [
+        { "tool": "delete_slide", "slideId": "slide-5" },
+        { "tool": "update_slide", "slideId": "slide-3" }
+      ]
+    }
+  },
+  {
+    "id": "multi-swap-and-shorten",
+    "category": "multi-step",
+    "message": "Swap slides 2 and 3, then make the paragraph on 'Why A Schema Matters' shorter",
+    "expect": {
+      "tools": [
+        {
+          "tool": "reorder_slides",
+          "order": [
+            "slide-1",
+            "slide-3",
+            "slide-2",
+            "slide-4",
+            "slide-5",
+            "slide-6"
+          ]
+        },
+        { "tool": "update_slide", "slideId": "slide-3" }
+      ]
+    }
+  },
+  {
+    "id": "multi-retitle-and-delete",
+    "category": "multi-step",
+    "message": "Rename slide 1 to 'Deck Lab 2.0' and delete the table slide",
+    "expect": {
+      "tools": [
+        { "tool": "update_slide", "slideId": "slide-1" },
+        { "tool": "delete_slide", "slideId": "slide-6" }
+      ]
+    }
+  },
+  {
+    "id": "multi-add-and-retitle",
+    "category": "multi-step",
+    "message": "Add a 'Thank You' slide at the end and change slide 2's title to 'Highlights'",
+    "expect": {
+      "tools": [
+        { "tool": "add_slide", "position": "end" },
+        { "tool": "update_slide", "slideId": "slide-2" }
+      ]
+    }
+  },
+  {
+    "id": "multi-two-layouts",
+    "category": "multi-step",
+    "message": "Make slide 3 a two-column slide and slide 5 a plain content slide",
+    "expect": {
+      "tools": [
+        { "tool": "change_layout", "slideId": "slide-3" },
+        { "tool": "change_layout", "slideId": "slide-5" }
+      ],
+      "optional": [
+        { "tool": "update_slide", "slideId": "slide-3" },
+        { "tool": "update_slide", "slideId": "slide-5" }
+      ]
+    }
+  },
+  {
+    "id": "history-answer-which-slide",
+    "category": "follow-up",
+    "message": "the 3rd one",
+    "history": [
+      {
+        "role": "user",
+        "content": "Can you make one of the slides more concise?"
+      },
+      {
+        "role": "assistant",
+        "content": "Sure - which slide would you like me to make more concise?"
+      }
+    ],
+    "expect": { "tool": "update_slide", "slideId": "slide-3" }
+  },
+  {
+    "id": "history-confirm-yes",
+    "category": "follow-up",
+    "message": "yes",
+    "selectedSlideId": "slide-4",
+    "history": [
+      { "role": "user", "content": "change the title to 'Editing Modes'" },
+      {
+        "role": "assistant",
+        "content": "Update slide 4 (\"Manual vs. AI-Driven Edits\") - set the title to \"Editing Modes\"?"
+      }
+    ],
+    "expect": { "tool": "update_slide", "slideId": "slide-4" }
+  },
+  {
+    "id": "history-confirm-redirect",
+    "category": "follow-up",
+    "message": "no, slide 2",
+    "selectedSlideId": "slide-4",
+    "history": [
+      { "role": "user", "content": "change the title to 'Editing Modes'" },
+      {
+        "role": "assistant",
+        "content": "Update slide 4 (\"Manual vs. AI-Driven Edits\") - set the title to \"Editing Modes\"?"
+      }
+    ],
+    "expect": { "tool": "update_slide", "slideId": "slide-2" }
+  },
+  {
+    "id": "selection-ignored-delete",
+    "category": "selection-override",
+    "message": "Delete slide 6",
+    "selectedSlideId": "slide-3",
+    "expect": { "tool": "delete_slide", "slideId": "slide-6" }
+  },
+  {
+    "id": "selection-ignored-retitle",
+    "category": "selection-override",
+    "message": "Change slide 4's title to 'Two Ways To Edit'",
+    "selectedSlideId": "slide-2",
+    "expect": { "tool": "update_slide", "slideId": "slide-4" }
+  },
+  {
+    "id": "ambiguous-make-better",
+    "category": "ambiguous-no-selection",
+    "message": "Make it better",
+    "expect": { "clarify": true }
+  },
+  {
+    "id": "ambiguous-change-title",
+    "category": "ambiguous-no-selection",
+    "message": "Change the title to 'Overview'",
+    "expect": { "clarify": true }
+  },
+  {
+    "id": "ambiguous-more-detail",
+    "category": "ambiguous-no-selection",
+    "message": "Add more detail",
+    "expect": { "clarify": true }
+  },
+  {
+    "id": "selected-change-title",
+    "category": "ambiguous-with-selection",
+    "message": "Change the title to 'Overview'",
+    "selectedSlideId": "slide-3",
+    "expect": { "clarify": true }
+  },
+  {
+    "id": "selected-more-concise",
+    "category": "ambiguous-with-selection",
+    "message": "Make this more concise",
+    "selectedSlideId": "slide-2",
+    "expect": { "clarify": true }
+  },
+  {
+    "id": "selected-add-bullet",
+    "category": "ambiguous-with-selection",
+    "message": "Add a bullet about pricing",
+    "selectedSlideId": "slide-2",
+    "expect": { "clarify": true }
+  }
+]
