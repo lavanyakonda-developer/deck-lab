@@ -1,4 +1,10 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 
 const RESULTS_DIR = path.join(import.meta.dirname, "..", "results");
@@ -46,4 +52,19 @@ export function runMetadata(details: Record<string, string | number>): string {
     ...details,
   }).map(([key, value]) => `- **${key}**: ${value}`);
   return lines.join("\n");
+}
+
+// Every raw result file previously written for `evalName`, oldest first
+// (the timestamp in the file name sorts chronologically).
+export function readRawResults<T>(
+  evalName: string,
+): Array<{ file: string; data: T }> {
+  if (!existsSync(RAW_DIR)) return [];
+  return readdirSync(RAW_DIR)
+    .filter((name) => name.startsWith(`${evalName}-`) && name.endsWith(".json"))
+    .sort()
+    .map((name) => {
+      const file = path.join(RAW_DIR, name);
+      return { file, data: JSON.parse(readFileSync(file, "utf8")) as T };
+    });
 }

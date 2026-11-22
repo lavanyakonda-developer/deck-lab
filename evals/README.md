@@ -102,3 +102,41 @@ OpenAI's prices change or you use a model that isn't listed — the summary
 shows `n/a` for an unpriced model. Cached-input discounts are ignored, and
 image generation (a separate call the browser makes afterwards) is not
 included.
+
+## Context growth — `npm run eval:context`
+
+Plays the 30-turn editing conversation in `cases/context-conversation.json`
+against `/api/chat`. Like the chat panel, each turn sends the current deck
+(with earlier edits applied through the deck store), the selected slide
+and the full chat history so far; the server trims that history to its cap
+before calling OpenAI. Each turn's prompt tokens come from the `done`
+event's usage.
+
+The cap is a server setting, so the two runs need a restart in between:
+
+```bash
+# 1. Capped (the default, 10 messages)
+npm run dev
+npm run eval:context -- --label capped-10
+
+# 2. Uncapped - stop the server, then
+CHAT_MAX_HISTORY_MESSAGES=0 npm run dev
+npm run eval:context -- --label uncapped
+```
+
+`--label` is required and is how runs are told apart. If
+`CHAT_MAX_HISTORY_MESSAGES` is set in `.env.local`, the value on the
+command line overrides it. After each run, the outputs are rebuilt from
+the latest run of every label:
+
+- `evals/results/context-growth.csv`: turn, then one mean prompt-token
+  column per label, for plotting.
+- `evals/results/context-growth.md`: one row per label.
+
+| Column                   | Meaning                                                                                                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Prompt tokens, turn N    | Mean prompt tokens of that turn across runs. Includes the system prompt and deck context, which change a little as the deck is edited.                       |
+| Total prompt tokens      | Sum of the per-turn means over the conversation.                                                                                                             |
+| Est. cost / conversation | Prompt + completion tokens priced with `evals/pricing.ts`.                                                                                                   |
+| Turns with a tool call   | Share of turns that made at least one tool call. Every scripted message asks for an edit, so a drop here means the model answered in text instead of acting. |
+| Errors                   | Turns that ended in an `error` event or HTTP error; their tokens are left out of the means.                                                                  |
