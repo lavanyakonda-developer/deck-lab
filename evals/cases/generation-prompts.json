@@ -1,0 +1,98 @@
+[
+  {
+    "id": "solar-energy-5",
+    "prompt": "Create a 5-slide deck about the growth of solar energy",
+    "expectedSlides": 5
+  },
+  {
+    "id": "remote-work-6",
+    "prompt": "Make a 6-slide presentation on the pros and cons of remote work",
+    "expectedSlides": 6
+  },
+  {
+    "id": "q3-sales-review-7",
+    "prompt": "Build a 7-slide Q3 sales review for a mid-size SaaS company, including revenue by region",
+    "expectedSlides": 7
+  },
+  {
+    "id": "onboarding-4",
+    "prompt": "A 4-slide onboarding deck for new engineering hires",
+    "expectedSlides": 4
+  },
+  {
+    "id": "coffee-startup-pitch-8",
+    "prompt": "Generate an 8-slide investor pitch for a specialty coffee subscription startup",
+    "expectedSlides": 8
+  },
+  {
+    "id": "photosynthesis-5-words",
+    "prompt": "Explain photosynthesis to high school students in five slides",
+    "expectedSlides": 5
+  },
+  {
+    "id": "cloud-comparison-6",
+    "prompt": "Create a 6-slide comparison of AWS, Azure and Google Cloud for a startup choosing a provider",
+    "expectedSlides": 6
+  },
+  {
+    "id": "marathon-training-5",
+    "prompt": "5 slides on how to train for your first marathon",
+    "expectedSlides": 5
+  },
+  {
+    "id": "cybersecurity-basics-10",
+    "prompt": "Make a 10-slide cybersecurity awareness training for non-technical staff",
+    "expectedSlides": 10
+  },
+  {
+    "id": "product-roadmap-6",
+    "prompt": "Create a six-slide 2027 product roadmap for a mobile banking app",
+    "expectedSlides": 6
+  },
+  {
+    "id": "climate-policy-7",
+    "prompt": "A 7-slide overview of carbon pricing policies around the world",
+    "expectedSlides": 7
+  },
+  {
+    "id": "team-retro-4",
+    "prompt": "Make a short 4-slide sprint retrospective deck: what went well, what didn't, action items",
+    "expectedSlides": 4
+  },
+  {
+    "id": "ev-market-8",
+    "prompt": "Build an 8-slide market analysis of the electric vehicle industry with market share data",
+    "expectedSlides": 8
+  },
+  {
+    "id": "nutrition-3",
+    "prompt": "Create a 3-slide deck on the basics of a balanced diet",
+    "expectedSlides": 3
+  },
+  {
+    "id": "ai-in-healthcare-12",
+    "prompt": "Prepare a 12-slide conference talk on AI in healthcare: diagnostics, drug discovery, operations, risks and regulation",
+    "expectedSlides": 12
+  },
+  {
+    "id": "budget-proposal-6",
+    "prompt": "6 slides proposing next year's marketing budget, with a breakdown table by channel",
+    "expectedSlides": 6
+  },
+  {
+    "id": "history-of-internet-open",
+    "prompt": "Make a presentation about the history of the internet"
+  },
+  {
+    "id": "customer-churn-open",
+    "prompt": "Create a deck analysing why customers churn from subscription businesses and how to reduce it"
+  },
+  {
+    "id": "space-tourism-open",
+    "prompt": "Presentation on the future of space tourism"
+  },
+  {
+    "id": "kubernetes-intro-open",
+    "prompt": "Introduce Kubernetes to a team of backend developers who have only used virtual machines"
+  }
+]

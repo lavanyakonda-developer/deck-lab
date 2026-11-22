@@ -81,3 +81,24 @@ element positions, which the baseline can't preserve by construction.
 
 Errored runs count as failures in every rate and are excluded from token and
 latency figures.
+
+## Deck generation — `npm run eval:generation`
+
+Sends each prompt in `cases/generation-prompts.json` to the app's streaming
+`/api/generate` endpoint and scores the final deck from the `done` event.
+Most prompts state a slide count (`expectedSlides`); a few leave it open.
+
+| Metric                           | Meaning                                                                                                 |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Success rate                     | The stream ended with a `done` event carrying a non-empty deck (no `error` event, no HTTP error).       |
+| Slide-count match                | The deck has exactly the requested number of slides. Only prompts that state a count.                   |
+| Decks with a chart/table/image   | Share of successful decks containing at least one block of that type.                                   |
+| Streamed slides match final deck | The `slide` events are exactly the final deck's slides, same ids and order (what the client relies on). |
+| Time to first slide / full deck  | p50 / p95 from sending the request to the first `slide` event and to the `done` event.                  |
+| Tokens / estimated cost          | Mean per deck, from the usage in the `done` event, priced with `evals/pricing.ts`.                      |
+
+Prices live in `evals/pricing.ts` (USD per 1M tokens). Edit them if
+OpenAI's prices change or you use a model that isn't listed — the summary
+shows `n/a` for an unpriced model. Cached-input discounts are ignored, and
+image generation (a separate call the browser makes afterwards) is not
+included.
