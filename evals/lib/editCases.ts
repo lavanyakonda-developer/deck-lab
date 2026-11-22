@@ -45,7 +45,7 @@ const ToolExpectationSchema = z.object({
     .optional(),
 });
 
-type ToolExpectation = z.infer<typeof ToolExpectationSchema>;
+export type ToolExpectation = z.infer<typeof ToolExpectationSchema>;
 
 const ClarifyExpectationSchema = z.object({ clarify: z.literal(true) });
 
@@ -90,6 +90,11 @@ export function isClarifyCase(
   c: EditCase,
 ): c is EditCase & { expect: { clarify: true } } {
   return "clarify" in c.expect;
+}
+
+// The expected tool calls, or null for a clarify case.
+export function toolExpectation(c: EditCase): ToolExpectation | null {
+  return "clarify" in c.expect ? null : c.expect;
 }
 
 // --- Scoring ---------------------------------------------------------------
@@ -283,7 +288,7 @@ export function scoreEditRun(
     };
   }
 
-  const expectation = testCase.expect as ToolExpectation;
+  const expectation = toolExpectation(testCase)!;
   const { missing, wrongTarget, unexpected } = matchCalls(
     expectation,
     calls,

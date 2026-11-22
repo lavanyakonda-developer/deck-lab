@@ -49,3 +49,35 @@ question for ambiguous requests.
 
 The summary also has a per-category breakdown and lists every case that
 failed in any run, with the calls and reply that came back.
+
+## Tool calling vs. full-deck baseline — `npm run eval:baseline`
+
+Uses the single-slide `update_slide` cases from `cases/edit-cases.json`
+(those with no chat history or selected slide, so both approaches get
+exactly the same input). Before each case, slide 2's title is changed to
+`MY MANUAL EDIT` through the deck store's `updateElement` — the same action
+a manual canvas edit uses. The request is then run two ways:
+
+- **Tool calling**: `/api/chat` on the running app; its `tool-call` events
+  are applied through the deck store.
+- **Full-deck baseline**: a direct OpenAI call (same model, read from
+  `.env.local`) with the whole deck as JSON and "return the full updated
+  deck", using the app's own `deckJsonSchema` structured output. The deck is
+  sent in exactly the shape the schema returns, so echoing unchanged slides
+  verbatim is always possible.
+
+Both results are compared with the manually edited deck by slide position
+and visible content (title, subtitle, column titles, body), ignoring ids and
+element positions, which the baseline can't preserve by construction.
+
+| Metric                      | Meaning                                                                                                               |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Manual-edit survival        | Slide 2 still contains `MY MANUAL EDIT`. Only counted for cases that target a slide other than slide 2.               |
+| Non-target slides preserved | Same slide count, and every slide except the target is unchanged.                                                     |
+| Target slide changed        | The requested slide actually changed (a sanity check that the edit happened at all).                                  |
+| Slide count changed         | Slides were added or dropped by a request that only edits one slide.                                                  |
+| Prompt / completion tokens  | Mean per edit. Tool calling reports the app's own usage from the `done` event; the baseline reports its call's usage. |
+| Latency p50 / p95           | Request start until the edit is complete (`done` event, or the baseline's response).                                  |
+
+Errored runs count as failures in every rate and are excluded from token and
+latency figures.
