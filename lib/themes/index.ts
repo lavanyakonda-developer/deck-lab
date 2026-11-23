@@ -7,10 +7,9 @@
 // read from). This is what makes "the selected theme persists into a
 // download" true by construction, not by re-deriving colors twice.
 //
-// Five color presets (originally just light/dark; expanded at the user's
-// request to a dropdown of typical presentation themes). Colors only - no
-// font/spacing variation. The "light"/"dark" keys are kept unchanged so a
-// value already persisted in localStorage still resolves.
+// Five color presets. Colors only - no font/spacing variation. The
+// "light"/"dark" keys are kept unchanged so a value already persisted in
+// localStorage still resolves.
 
 export type SlideThemeName = "light" | "dark" | "corporate" | "warm" | "forest";
 

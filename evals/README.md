@@ -7,9 +7,10 @@ case runs several times (`--runs`, default 3) with metrics averaged.
 
 ## Running
 
-1. Put `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`) in `.env.local`, as
-   for the app itself. The eval scripts load the same file, so the model
-   recorded in each summary matches the one the app uses.
+1. Put `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`) in `.env.local` or
+   `.env`, as for the app itself. The eval scripts load the same files (same
+   precedence as Next.js), so the model recorded in each summary matches the
+   one the app uses.
 2. Start the app: `npm run dev`, or `npm run build && npm start`.
 3. In a second terminal, run an eval (below).
 
@@ -61,7 +62,7 @@ a manual canvas edit uses. The request is then run two ways:
 - **Tool calling**: `/api/chat` on the running app; its `tool-call` events
   are applied through the deck store.
 - **Full-deck baseline**: a direct OpenAI call (same model, read from
-  `.env.local`) with the whole deck as JSON and "return the full updated
+  the same env files) with the whole deck as JSON and "return the full updated
   deck", using the app's own `deckJsonSchema` structured output. The deck is
   sent in exactly the shape the schema returns, so echoing unchanged slides
   verbatim is always possible.
@@ -125,7 +126,7 @@ npm run eval:context -- --label uncapped
 ```
 
 `--label` is required and is how runs are told apart. If
-`CHAT_MAX_HISTORY_MESSAGES` is set in `.env.local`, the value on the
+`CHAT_MAX_HISTORY_MESSAGES` is set in an env file, the value on the
 command line overrides it. After each run, the outputs are rebuilt from
 the latest run of every label:
 

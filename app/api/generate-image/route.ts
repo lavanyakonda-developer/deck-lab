@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { getOpenAIClient } from "@/lib/ai/openaiClient";
 
-// OpenAI retires image models over time (gpt-image-1 was removed from this
-// account's model list, failing every request with "model does not exist"),
-// so the model is env-configurable rather than hardcoded. Read per request,
-// not at module load, so it can't break `npm run build`.
+// OpenAI retires image models over time, so the model is env-configurable
+// rather than hardcoded. Read per request, not at module load, so it can't
+// break `npm run build`.
 const DEFAULT_IMAGE_MODEL = "gpt-image-2";
 
 export async function POST(request: Request) {
@@ -25,9 +24,8 @@ export async function POST(request: Request) {
 
   try {
     const client = getOpenAIClient();
-    // GPT image models always return base64 (no url/response_format option -
-    // and confirmed live that this account doesn't have dall-e-3 access
-    // anyway), which conveniently sidesteps OpenAI's ~60-minute URL expiry:
+    // GPT image models always return base64 (no url/response_format
+    // option), which sidesteps OpenAI's ~60-minute URL expiry:
     // a deck persists far longer than that in localStorage, so a url would
     // go stale. jpeg + compression keeps the base64 payload reasonable -
     // lossless PNG at 1024x1024 ran ~1.6MB, which adds up fast against

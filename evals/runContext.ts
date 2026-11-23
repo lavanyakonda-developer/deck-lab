@@ -9,6 +9,7 @@
 //
 //   npm run eval:context -- --label capped-10 [--runs 3] [--base-url ...]
 
+import "./lib/loadEnv";
 import { OPENAI_MODEL } from "@/lib/ai/openaiClient";
 import { seedDeck } from "@/lib/seedDeck";
 import type { Deck } from "@/lib/schema/slide";

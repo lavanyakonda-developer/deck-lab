@@ -5,6 +5,7 @@
 //
 //   npm run eval:generation -- [--runs 3] [--base-url http://localhost:3000] [--filter open]
 
+import "./lib/loadEnv";
 import { OPENAI_MODEL } from "@/lib/ai/openaiClient";
 import { assertAppRunning, parseEvalOptions, repeat } from "./lib/cli";
 import {

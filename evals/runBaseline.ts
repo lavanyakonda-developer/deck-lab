@@ -8,6 +8,7 @@
 //
 //   npm run eval:baseline -- [--runs 3] [--base-url http://localhost:3000]
 
+import "./lib/loadEnv";
 import { OPENAI_MODEL } from "@/lib/ai/openaiClient";
 import type { UsageReport } from "@/lib/ai/usage";
 import { seedDeck } from "@/lib/seedDeck";

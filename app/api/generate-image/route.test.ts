@@ -69,8 +69,7 @@ describe("POST /api/generate-image", () => {
     expect(mockGenerate).not.toHaveBeenCalled();
   });
 
-  // The explicit "mocked failure -> fallback path, not a crash" case from
-  // the phase spec: the route must degrade to a clean error response, and
+  // A failed generation must degrade to a clean error response, and
   // the caller (lib/ai/generateImage.ts) treats that as "leave url null",
   // never throwing all the way up to crash the UI.
   it("returns 502 with the error message when OpenAI fails, rather than throwing", async () => {

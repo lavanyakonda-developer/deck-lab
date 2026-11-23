@@ -5,6 +5,7 @@
 //
 //   npm run eval:edit -- [--runs 3] [--base-url http://localhost:3000] [--filter delete]
 
+import "./lib/loadEnv";
 import { OPENAI_MODEL } from "@/lib/ai/openaiClient";
 import { seedDeck } from "@/lib/seedDeck";
 import { applyChatEvents } from "./lib/applyEvents";
