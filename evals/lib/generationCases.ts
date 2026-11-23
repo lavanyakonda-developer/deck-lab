@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import type { UsageReport, TokenUsage } from "@/lib/ai/usage";
-import type { Deck, Slide } from "@/lib/schema/slide";
+import type { Deck, Slide, SlideContent } from "@/lib/schema/slide";
+import { getSlideContent } from "@/lib/slides/layoutEngine";
 import { eventsOfType, firstEventTime, type SSEResult } from "./sse";
 
 // --- Case file format ------------------------------------------------------
@@ -48,6 +49,11 @@ export interface GenerationRunScore {
   hasChart: boolean;
   hasTable: boolean;
   hasImage: boolean;
+  // The deck follows the structure the generation prompt requires (see
+  // structureProblems); empty when it does.
+  structureProblems: string[];
+  // What each slide shows, kept in the raw results for later review.
+  slides?: SlideContent[];
   // The slides streamed one by one are exactly the final deck's slides
   // (same ids, same order) - the client relies on this to reconcile.
   streamConsistent: boolean;
@@ -57,10 +63,43 @@ export interface GenerationRunScore {
   usage?: TokenUsage;
 }
 
+function blockCount(slide: Slide, type: "chart" | "table" | "image"): number {
+  return slide.elements.filter((el) => el.content.type === type).length;
+}
+
 function hasBlock(deck: Deck, type: "chart" | "table" | "image"): boolean {
-  return deck.slides.some((slide) =>
-    slide.elements.some((el) => el.content.type === type),
+  return deck.slides.some((slide) => blockCount(slide, type) > 0);
+}
+
+// The structure lib/ai/generateDeck.ts requires of every generated deck:
+// a title slide first, exactly one chart block and exactly one image block
+// on two different slides, neither of them the first or the last slide
+// (the last slide is the closing slide). That implies at least 4 slides.
+export function structureProblems(deck: Deck): string[] {
+  const problems: string[] = [];
+  const last = deck.slides.length - 1;
+  if (deck.slides[0]?.type !== "title") {
+    problems.push("first slide is not a title slide");
+  }
+  for (const type of ["chart", "image"] as const) {
+    const total = deck.slides.reduce((n, s) => n + blockCount(s, type), 0);
+    if (total !== 1) problems.push(`${total} ${type} blocks (expected 1)`);
+    deck.slides.forEach((slide, i) => {
+      if (blockCount(slide, type) > 0 && (i === 0 || i === last)) {
+        problems.push(`${type} on the ${i === 0 ? "first" : "last"} slide`);
+      }
+    });
+  }
+  const sharedSlide = deck.slides.findIndex(
+    (s) => blockCount(s, "chart") > 0 && blockCount(s, "image") > 0,
   );
+  if (sharedSlide !== -1) {
+    problems.push(`chart and image on the same slide (${sharedSlide + 1})`);
+  }
+  if (deck.slides.length < 4) {
+    problems.push(`${deck.slides.length} slides (the structure needs 4)`);
+  }
+  return problems;
 }
 
 export function scoreGenerationRun(
@@ -96,6 +135,7 @@ export function scoreGenerationRun(
       hasChart: false,
       hasTable: false,
       hasImage: false,
+      structureProblems: [],
       streamConsistent: false,
     };
   }
@@ -111,6 +151,8 @@ export function scoreGenerationRun(
     hasChart: hasBlock(deck, "chart"),
     hasTable: hasBlock(deck, "table"),
     hasImage: hasBlock(deck, "image"),
+    structureProblems: structureProblems(deck),
+    slides: deck.slides.map((slide) => getSlideContent(slide)),
     streamConsistent:
       streamed.length === deck.slides.length &&
       streamed.every((slide, i) => slide.id === deck.slides[i].id),

@@ -57,6 +57,7 @@ export function historyAfterTurn(
 
 export interface TurnRecord {
   turn: number;
+  message: string;
   promptTokens?: number;
   completionTokens?: number;
   // Messages the client sent as history; the server then trims them to
@@ -64,7 +65,45 @@ export interface TurnRecord {
   historySent: number;
   slideCount: number;
   toolCalls: number;
+  // What the app did and said this turn, for diagnosing turns without a
+  // tool call.
+  calls: string[];
+  invalidCalls: string[];
+  reply: string;
   error?: string;
+}
+
+// The assistant's side of a turn as the chat panel would show it.
+export function turnReply(events: TimedEvent[]): string {
+  const done = eventsOfType<{ reply: string }>(events, "done")[0];
+  if (done) return done.reply;
+  return eventsOfType<{ text: string }>(events, "text-delta")
+    .map((d) => d.text)
+    .join("");
+}
+
+export interface NoToolTurn {
+  run: number;
+  turn: number;
+  message: string;
+  reply: string;
+  invalidCalls: string[];
+}
+
+// Turns that made no tool call although every scripted message asks for an
+// edit, across all runs of one label.
+export function noToolCallTurns(conversations: TurnRecord[][]): NoToolTurn[] {
+  return conversations.flatMap((records, runIndex) =>
+    records
+      .filter((r) => r.toolCalls === 0 && !r.error)
+      .map((r) => ({
+        run: runIndex + 1,
+        turn: r.turn,
+        message: r.message,
+        reply: r.reply,
+        invalidCalls: r.invalidCalls,
+      })),
+  );
 }
 
 export function turnUsage(events: TimedEvent[]) {

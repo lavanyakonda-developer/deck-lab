@@ -1,0 +1,191 @@
+[
+  {
+    "type": "content",
+    "title": "Who Uses Deck Lab",
+    "body": [
+      {
+        "type": "bullets",
+        "items": [
+          "Founders preparing investor updates",
+          "Teachers building lesson decks",
+          "Consultants turning notes into client slides",
+          "Engineers presenting design reviews"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "content",
+    "title": "How A Request Flows",
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "A chat message is sent with the current deck. The model chooses a tool, the server validates its arguments, and the browser applies the change through the same store actions the editor uses."
+      }
+    ]
+  },
+  {
+    "type": "content",
+    "title": "Weekly Active Decks",
+    "body": [
+      {
+        "type": "chart",
+        "chartType": "line",
+        "data": [
+          { "label": "Week 1", "value": 120 },
+          { "label": "Week 2", "value": 180 },
+          { "label": "Week 3", "value": 260 },
+          { "label": "Week 4", "value": 310 }
+        ],
+        "caption": "Illustrative numbers"
+      }
+    ]
+  },
+  {
+    "type": "two-column",
+    "title": "Strengths And Gaps",
+    "layout": { "columnTitles": ["Strengths", "Gaps"] },
+    "body": [
+      {
+        "type": "bullets",
+        "items": ["Fast targeted edits", "Live streaming", "Undo everywhere"],
+        "column": 0
+      },
+      {
+        "type": "bullets",
+        "items": ["No collaboration yet", "Desktop layout only"],
+        "column": 1
+      }
+    ]
+  },
+  {
+    "type": "content",
+    "title": "Export Formats",
+    "body": [
+      {
+        "type": "bullets",
+        "items": [
+          "PPTX with native shapes and charts",
+          "PDF drawn from element positions",
+          "Themes carried into both downloads"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "table",
+    "title": "Plan Tiers",
+    "body": [
+      {
+        "type": "table",
+        "headers": ["Tier", "Decks", "Price"],
+        "rows": [
+          ["Free", "3", "$0"],
+          ["Pro", "Unlimited", "$12/month"],
+          ["Team", "Unlimited", "$30/month"]
+        ]
+      }
+    ]
+  },
+  {
+    "type": "content",
+    "title": "Keyboard Shortcuts",
+    "body": [
+      {
+        "type": "bullets",
+        "items": [
+          "Cmd+Z to undo, Cmd+Shift+Z to redo",
+          "Arrow keys nudge the selected element",
+          "Delete removes the selected element"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "content",
+    "title": "Design Principles",
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Every change, whether typed by hand or requested in chat, goes through one set of store actions. That single path is what lets manual and AI edits coexist."
+      }
+    ]
+  },
+  {
+    "type": "two-column",
+    "title": "Before And After A Chat Edit",
+    "layout": { "columnTitles": ["Before", "After"] },
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Five long bullets on one slide.",
+        "column": 0
+      },
+      {
+        "type": "paragraph",
+        "text": "Three short bullets, nothing else touched.",
+        "column": 1
+      }
+    ]
+  },
+  {
+    "type": "content",
+    "title": "Time Saved Per Deck",
+    "body": [
+      {
+        "type": "chart",
+        "chartType": "bar",
+        "data": [
+          { "label": "Outline", "value": 25 },
+          { "label": "Drafting", "value": 60 },
+          { "label": "Revisions", "value": 40 }
+        ],
+        "caption": "Minutes saved, illustrative"
+      }
+    ]
+  },
+  {
+    "type": "content",
+    "title": "Known Limitations",
+    "body": [
+      {
+        "type": "bullets",
+        "items": [
+          "Long chats can drift without a history cap",
+          "Image generation takes several seconds",
+          "Charts are edited through chat, not by hand"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "content",
+    "title": "Roadmap",
+    "body": [
+      {
+        "type": "bullets",
+        "items": ["Multiple decks per user", "Shared editing", "Custom themes"]
+      }
+    ]
+  },
+  {
+    "type": "content",
+    "title": "Getting Started",
+    "body": [
+      {
+        "type": "paragraph",
+        "text": "Describe the deck you want in the chat, then refine it slide by slide or edit any element directly on the canvas."
+      }
+    ]
+  },
+  {
+    "type": "content",
+    "title": "Questions",
+    "body": [
+      {
+        "type": "bullets",
+        "items": ["Contact the team", "Try it with your own topic"]
+      }
+    ]
+  }
+]

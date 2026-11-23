@@ -6,6 +6,7 @@ import type { Deck } from "@/lib/schema/slide";
 import { getSlideContent } from "@/lib/slides/layoutEngine";
 import { changedNonTargetSlides } from "./compare";
 import { eventsOfType, type SSEResult } from "./sse";
+import type { StrictClarifyResult } from "./strictClarify";
 
 // --- Case file format ------------------------------------------------------
 
@@ -111,6 +112,8 @@ export interface EditRunScore {
   category: string;
   kind: "tool" | "clarify";
   calls: string[];
+  // Calls the server rejected, as "tool: validation error".
+  invalidCalls: string[];
   reply: string;
   latencyMs: number;
   error?: string;
@@ -119,9 +122,14 @@ export interface EditRunScore {
   targetCorrect?: boolean;
   // Only when the response actually changed something.
   preserved?: boolean;
-  missed?: boolean;
+  // No tool call and no rejected call: the model only replied in text.
+  answeredInText?: boolean;
+  // At least one call was rejected by validation (see invalidCalls).
+  invalidCall?: boolean;
   // Clarify cases only.
   clarifyCorrect?: boolean;
+  // Set by the runner after scoring (it may call an LLM judge).
+  strictClarify?: StrictClarifyResult;
   passed: boolean;
   problems: string[];
 }
@@ -267,6 +275,10 @@ export function scoreEditRun(
     caseId: testCase.id,
     category: testCase.category,
     calls: calls.map((c) => c.label),
+    invalidCalls: eventsOfType<{ tool: string; error: string }>(
+      result.events,
+      "invalid-tool-call",
+    ).map((c) => `${c.tool}: ${c.error}`),
     reply: done?.reply ?? "",
     latencyMs:
       result.events.find((e) => e.event === "done")?.t ?? result.totalMs,
@@ -329,8 +341,12 @@ export function scoreEditRun(
   const toolCorrect = !error && missing.length === 0 && unexpected.length === 0;
   const targetCorrect =
     !error && missing.length === 0 && wrongTarget.length === 0 && blockCheck;
-  const missed = !error && calls.length === 0;
-  if (missed) problems.push("no tool call arrived");
+  const invalidCall = !error && base.invalidCalls.length > 0;
+  for (const invalid of base.invalidCalls) {
+    problems.push(`invalid tool call rejected: ${invalid}`);
+  }
+  const answeredInText = !error && calls.length === 0 && !invalidCall;
+  if (answeredInText) problems.push("no tool call arrived (answered in text)");
 
   return {
     ...base,
@@ -338,7 +354,8 @@ export function scoreEditRun(
     toolCorrect,
     targetCorrect,
     preserved,
-    missed,
+    answeredInText,
+    invalidCall,
     passed: toolCorrect && targetCorrect && preserved !== false,
     problems,
   };

@@ -2,3 +2,6 @@
 node_modules
 coverage
 package-lock.json
+
+# Generated eval results are kept exactly as written
+evals/results

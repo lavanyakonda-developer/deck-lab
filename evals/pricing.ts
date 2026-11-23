@@ -1,5 +1,9 @@
 import type { TokenUsage } from "@/lib/ai/usage";
 
+// The model that grades replies in LLM-judged metrics (see
+// evals/lib/judge.ts). Its tokens are reported separately from the app's.
+export const JUDGE_MODEL = "gpt-4o-mini";
+
 // USD per 1M tokens, used only to turn measured token counts into an
 // estimated cost. Edit these when prices change, or add your model - check
 // OpenAI's pricing page before publishing numbers. Cached-input discounts

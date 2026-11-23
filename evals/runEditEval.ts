@@ -3,13 +3,18 @@
 // deck store, and scores which tool was called, on which slide, and whether
 // everything else in the deck survived untouched.
 //
-//   npm run eval:edit -- [--runs 3] [--base-url http://localhost:3000] [--filter delete]
+//   npm run eval:edit -- --run-id run-2 [--runs 3] [--base-url http://localhost:3000] [--filter delete]
 
 import "./lib/loadEnv";
 import { OPENAI_MODEL } from "@/lib/ai/openaiClient";
 import { seedDeck } from "@/lib/seedDeck";
 import { applyChatEvents } from "./lib/applyEvents";
-import { assertAppRunning, parseEvalOptions, repeat } from "./lib/cli";
+import {
+  assertAppRunning,
+  matchesFilter,
+  parseEvalOptions,
+  repeat,
+} from "./lib/cli";
 import {
   isClarifyCase,
   loadEditCases,
@@ -24,7 +29,16 @@ import {
   writeSummary,
 } from "./lib/results";
 import { postSSE } from "./lib/sse";
-import { formatNumber, formatPercent, p50, p95, rate } from "./lib/stats";
+import { scoreStrictClarify } from "./lib/strictClarify";
+import {
+  formatNumber,
+  formatPercent,
+  formatRateWithInterval,
+  p50,
+  p95,
+  rate,
+} from "./lib/stats";
+import { estimateCostUsd, JUDGE_MODEL } from "./pricing";
 
 const EVAL_NAME = "edit-accuracy";
 
@@ -33,7 +47,8 @@ interface Metrics {
   toolAccuracy: number;
   targetAccuracy: number;
   preservationRate: number;
-  missedRate: number;
+  answeredInTextRate: number;
+  invalidCallRate: number;
   clarifyAccuracy: number;
   passRate: number;
   errors: number;
@@ -53,7 +68,8 @@ function computeMetrics(scores: EditRunScore[]): Metrics {
     toolAccuracy: rate(toolRuns.map((s) => s.toolCorrect!)),
     targetAccuracy: rate(toolRuns.map((s) => s.targetCorrect!)),
     preservationRate: rate(changedRuns.map((s) => s.preserved!)),
-    missedRate: rate(toolRuns.map((s) => s.missed!)),
+    answeredInTextRate: rate(toolRuns.map((s) => s.answeredInText!)),
+    invalidCallRate: rate(toolRuns.map((s) => s.invalidCall!)),
     clarifyAccuracy: rate(clarifyRuns.map((s) => s.clarifyCorrect!)),
     passRate: rate(scores.map((s) => s.passed)),
     errors: scores.filter((s) => s.error).length,
@@ -73,58 +89,120 @@ async function runCase(
     selectedSlideId: testCase.selectedSlideId ?? null,
   });
   const after = applyChatEvents(seedDeck, result.events);
-  return scoreEditRun(testCase, seedDeck, result, after);
+  const score = scoreEditRun(testCase, seedDeck, result, after);
+  if (isClarifyCase(testCase)) {
+    score.strictClarify = await scoreStrictClarify(testCase, score, seedDeck);
+  }
+  return score;
+}
+
+// Tokens spent by the LLM judge - reported apart from the app's own usage.
+function judgeUsageLine(scores: EditRunScore[]): string | undefined {
+  const usages = scores.flatMap((s) =>
+    s.strictClarify?.judge?.usage ? [s.strictClarify.judge.usage] : [],
+  );
+  const calls = scores.filter((s) => s.strictClarify?.judge).length;
+  if (calls === 0) return undefined;
+  const total = usages.reduce(
+    (sum, u) => ({
+      promptTokens: sum.promptTokens + u.promptTokens,
+      completionTokens: sum.completionTokens + u.completionTokens,
+      totalTokens: sum.totalTokens + u.totalTokens,
+    }),
+    { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+  );
+  const cost = estimateCostUsd(JUDGE_MODEL, total);
+  const errors = scores.filter((s) => s.strictClarify?.judge?.error).length;
+  return `Judge (${JUDGE_MODEL}, temperature 0): ${calls} calls, ${formatNumber(total.promptTokens)} prompt + ${formatNumber(total.completionTokens)} completion tokens${cost === undefined ? "" : `, est. $${formatNumber(cost, 4)}`}, ${errors} errors. Not included in any app token figure.`;
 }
 
 function buildSummary(
   cases: EditCase[],
   scoresByCase: Map<string, EditRunScore[]>,
   runs: number,
+  runId: string,
 ): string {
   const all = [...scoresByCase.values()].flat();
   const overall = computeMetrics(all);
   const toolCaseCount = cases.filter((c) => !isClarifyCase(c)).length;
   const clarifyCaseCount = cases.length - toolCaseCount;
 
+  const toolRuns = all.filter((s) => s.kind === "tool");
+  const clarifyRuns = all.filter((s) => s.kind === "clarify");
+  const changedRuns = toolRuns.filter((s) => s.preserved !== undefined);
+  const toolRunsLabel = `${toolCaseCount} tool cases × ${runs} runs`;
+  const casesPassingAllRuns = [...scoresByCase.values()].filter(
+    (scores) => scores.length > 0 && scores.every((s) => s.passed),
+  ).length;
+
+  // Rates come with a 95% Wilson interval: with 3 runs per case, small
+  // differences between runs of this eval are within noise.
   const overallTable = markdownTable(
-    ["Metric", "Value", "Measured over"],
+    ["Metric", "Value (95% CI)", "Expected", "Measured over"],
     [
       [
         "Tool accuracy",
-        formatPercent(overall.toolAccuracy),
-        `${toolCaseCount} tool cases × ${runs} runs`,
+        formatRateWithInterval(toolRuns.map((s) => s.toolCorrect!)),
+        "100%",
+        toolRunsLabel,
       ],
       [
         "Target accuracy",
-        formatPercent(overall.targetAccuracy),
-        `${toolCaseCount} tool cases × ${runs} runs`,
+        formatRateWithInterval(toolRuns.map((s) => s.targetCorrect!)),
+        "100%",
+        toolRunsLabel,
       ],
       [
         "Preservation rate",
-        formatPercent(overall.preservationRate),
+        formatRateWithInterval(changedRuns.map((s) => s.preserved!)),
+        "100%",
         "runs that changed the deck",
       ],
       [
-        "Missed/invalid call rate",
-        formatPercent(overall.missedRate),
-        `${toolCaseCount} tool cases × ${runs} runs`,
+        "Answered in text (no tool call)",
+        formatRateWithInterval(toolRuns.map((s) => s.answeredInText!)),
+        "0%",
+        toolRunsLabel,
+      ],
+      [
+        "Invalid tool call",
+        formatRateWithInterval(toolRuns.map((s) => s.invalidCall!)),
+        "0%",
+        toolRunsLabel,
       ],
       [
         "Clarification accuracy",
-        formatPercent(overall.clarifyAccuracy),
+        formatRateWithInterval(clarifyRuns.map((s) => s.clarifyCorrect!)),
+        "100%",
+        `${clarifyCaseCount} ambiguous cases × ${runs} runs`,
+      ],
+      [
+        "Clarification accuracy (strict)",
+        formatRateWithInterval(
+          clarifyRuns.map((s) => s.strictClarify?.correct === true),
+        ),
+        "100%",
         `${clarifyCaseCount} ambiguous cases × ${runs} runs`,
       ],
       [
         "Overall pass rate",
-        formatPercent(overall.passRate),
+        formatRateWithInterval(all.map((s) => s.passed)),
+        "100%",
         `${cases.length} cases × ${runs} runs`,
+      ],
+      [
+        "Cases passing all runs",
+        `${casesPassingAllRuns} / ${cases.length}`,
+        `${cases.length} / ${cases.length}`,
+        `${cases.length} cases`,
       ],
       [
         "Latency to done (p50 / p95)",
         `${formatNumber(overall.latencyP50)} / ${formatNumber(overall.latencyP95)} ms`,
+        "–",
         "successful runs",
       ],
-      ["Errors", String(overall.errors), "error events or HTTP failures"],
+      ["Errors", String(overall.errors), "0", "error events or HTTP failures"],
     ],
   );
 
@@ -136,8 +214,10 @@ function buildSummary(
       "Tool acc.",
       "Target acc.",
       "Preserved",
-      "Missed",
+      "In text",
+      "Invalid",
       "Clarify acc.",
+      "Clarify (strict)",
       "Pass",
     ],
     categories.map((category) => {
@@ -152,8 +232,14 @@ function buildSummary(
         isClarify ? dash : formatPercent(m.toolAccuracy),
         isClarify ? dash : formatPercent(m.targetAccuracy),
         isClarify ? dash : formatPercent(m.preservationRate),
-        isClarify ? dash : formatPercent(m.missedRate),
+        isClarify ? dash : formatPercent(m.answeredInTextRate),
+        isClarify ? dash : formatPercent(m.invalidCallRate),
         isClarify ? formatPercent(m.clarifyAccuracy) : dash,
+        isClarify
+          ? formatPercent(
+              rate(scores.map((s) => s.strictClarify?.correct === true)),
+            )
+          : dash,
         formatPercent(m.passRate),
       ];
     }),
@@ -164,7 +250,10 @@ function buildSummary(
     const failed = scores.filter((s) => !s.passed);
     if (failed.length === 0) return [];
     const details = failed.map((s, i) => {
-      const calls = s.calls.length > 0 ? s.calls.join(", ") : "no tool calls";
+      const calls = [
+        s.calls.length > 0 ? s.calls.join(", ") : "no tool calls",
+        ...s.invalidCalls.map((c) => `rejected ${c}`),
+      ].join(", ");
       const reply =
         s.reply.length > 160 ? `${s.reply.slice(0, 160)}…` : s.reply;
       return `  - run ${i + 1}: ${calls}; reply: "${reply}" — ${s.problems.join("; ")}`;
@@ -174,12 +263,24 @@ function buildSummary(
     ];
   });
 
+  // Clarify runs that pass the lenient check but not the strict one (or
+  // fail both), with the reason - the lenient pass/fail is unchanged.
+  const strictFailures = clarifyRuns
+    .filter((s) => s.strictClarify && !s.strictClarify.correct)
+    .map((s) => {
+      const reply = s.reply.replace(/\s+/g, " ");
+      const shortReply = reply.length > 160 ? `${reply.slice(0, 160)}…` : reply;
+      return `- **${s.caseId}** (${s.strictClarify!.method}): ${s.strictClarify!.reason} — reply: "${shortReply}"`;
+    });
+  const judgeLine = judgeUsageLine(all);
+
   return [
     "# Edit accuracy",
     "",
     "Targeted edit requests against the seed deck, sent to the running app's `/api/chat` and applied through the real deck store. See `evals/README.md` for metric definitions.",
     "",
     runMetadata({
+      run: runId,
       model: OPENAI_MODEL,
       cases: cases.length,
       "runs per case": runs,
@@ -196,6 +297,11 @@ function buildSummary(
     `## Failed cases (${failures.length})`,
     "",
     failures.length > 0 ? failures.join("\n") : "None.",
+    "",
+    `## Clarify runs failing the strict check (${strictFailures.length})`,
+    "",
+    strictFailures.length > 0 ? strictFailures.join("\n") : "None.",
+    ...(judgeLine ? ["", judgeLine] : []),
   ].join("\n");
 }
 
@@ -203,11 +309,8 @@ async function main() {
   const options = parseEvalOptions();
   await assertAppRunning(options.baseUrl);
 
-  const cases = loadEditCases().filter(
-    (c) =>
-      !options.filter ||
-      c.id.includes(options.filter) ||
-      c.category.includes(options.filter),
+  const cases = loadEditCases().filter((c) =>
+    matchesFilter(options.filter, c.id, c.category),
   );
   if (cases.length === 0) throw new Error("No cases match --filter");
 
@@ -226,13 +329,18 @@ async function main() {
     console.log(`${mark} ${testCase.id.padEnd(36)} ${passed}/${scores.length}`);
   }
 
-  const summary = buildSummary(cases, scoresByCase, options.runs);
-  const rawFile = writeRawResults(EVAL_NAME, {
+  const summary = buildSummary(
+    cases,
+    scoresByCase,
+    options.runs,
+    options.runId,
+  );
+  const rawFile = writeRawResults(EVAL_NAME, options.runId, {
     options,
     model: OPENAI_MODEL,
     results: Object.fromEntries(scoresByCase),
   });
-  const summaryFile = writeSummary(EVAL_NAME, summary);
+  const summaryFile = writeSummary(EVAL_NAME, options.runId, summary);
 
   console.log(`\n${summary}\n`);
   console.log(`Raw results: ${rawFile}`);

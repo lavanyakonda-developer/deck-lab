@@ -49,7 +49,8 @@ describe("scoreEditRun", () => {
       toolCorrect: true,
       targetCorrect: true,
       preserved: true,
-      missed: false,
+      answeredInText: false,
+      invalidCall: false,
       passed: true,
       latencyMs: 200,
     });
@@ -77,19 +78,41 @@ describe("scoreEditRun", () => {
     );
   });
 
-  it("counts a response with no tool call as missed, with preservation not applicable", () => {
+  it("counts a response with no tool call as answered in text, with preservation not applicable", () => {
     const s = score(retitle3, response(["done", { reply: "Sure!" }]));
     expect(s).toMatchObject({
       toolCorrect: false,
-      missed: true,
+      answeredInText: true,
+      invalidCall: false,
       preserved: undefined,
+      passed: false,
+    });
+  });
+
+  it("separates a rejected tool call from answering in text", () => {
+    const s = score(
+      retitle3,
+      response(
+        ["invalid-tool-call", { tool: "update_slide", error: "id: Required" }],
+        ["done", { reply: "I didn't make any changes." }],
+      ),
+    );
+    expect(s).toMatchObject({
+      answeredInText: false,
+      invalidCall: true,
+      invalidCalls: ["update_slide: id: Required"],
       passed: false,
     });
   });
 
   it("counts an error event as a failure, not a miss", () => {
     const s = score(retitle3, response(["error", { error: "boom" }]));
-    expect(s).toMatchObject({ error: "boom", missed: false, passed: false });
+    expect(s).toMatchObject({
+      error: "boom",
+      answeredInText: false,
+      invalidCall: false,
+      passed: false,
+    });
   });
 
   it("allows optional calls but rejects unexpected ones", () => {

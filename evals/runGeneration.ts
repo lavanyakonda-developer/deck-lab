@@ -3,11 +3,16 @@
 // measures success, slide-count accuracy, rich-content coverage, how soon
 // the first slide streams in compared with the whole deck, and cost.
 //
-//   npm run eval:generation -- [--runs 3] [--base-url http://localhost:3000] [--filter open]
+//   npm run eval:generation -- --run-id run-2 [--runs 3] [--base-url http://localhost:3000] [--filter open]
 
 import "./lib/loadEnv";
 import { OPENAI_MODEL } from "@/lib/ai/openaiClient";
-import { assertAppRunning, parseEvalOptions, repeat } from "./lib/cli";
+import {
+  assertAppRunning,
+  matchesFilter,
+  parseEvalOptions,
+  repeat,
+} from "./lib/cli";
 import {
   loadGenerationCases,
   scoreGenerationRun,
@@ -44,6 +49,7 @@ function buildSummary(
   cases: GenerationCase[],
   scoresByCase: Map<string, GenerationRunScore[]>,
   runs: number,
+  runId: string,
 ): string {
   const all = [...scoresByCase.values()].flat();
   const ok = all.filter((s) => s.success);
@@ -57,43 +63,57 @@ function buildSummary(
   const ms = (values: number[]) =>
     `${formatNumber(p50(values))} / ${formatNumber(p95(values))} ms`;
 
+  const okLabel = "successful runs";
   const qualityTable = markdownTable(
-    ["Metric", "Value", "Measured over"],
+    ["Metric", "Value", "Expected", "Measured over"],
     [
       [
         "Success rate",
         formatPercent(rate(all.map((s) => s.success))),
+        "100%",
         `${cases.length} prompts × ${runs} runs`,
       ],
       [
         "Slide-count match",
         formatPercent(rate(counted.map((s) => s.slideCountMatch!))),
+        "100%",
         `successful runs of the ${countedCases.length} prompts with a stated count`,
+      ],
+      [
+        "Required structure met",
+        formatPercent(rate(ok.map((s) => s.structureProblems.length === 0))),
+        "100%",
+        okLabel,
       ],
       [
         "Decks with a chart",
         formatPercent(rate(ok.map((s) => s.hasChart))),
-        "successful runs",
-      ],
-      [
-        "Decks with a table",
-        formatPercent(rate(ok.map((s) => s.hasTable))),
-        "successful runs",
+        "100% (required)",
+        okLabel,
       ],
       [
         "Decks with an image",
         formatPercent(rate(ok.map((s) => s.hasImage))),
-        "successful runs",
+        "100% (required)",
+        okLabel,
+      ],
+      [
+        "Decks with a table",
+        formatPercent(rate(ok.map((s) => s.hasTable))),
+        "– (optional)",
+        okLabel,
       ],
       [
         "Streamed slides match final deck",
         formatPercent(rate(ok.map((s) => s.streamConsistent))),
-        "successful runs",
+        "100%",
+        okLabel,
       ],
       [
         "Mean slides per deck",
         formatNumber(mean(ok.map((s) => s.slideCount!)), 1),
-        "successful runs",
+        "–",
+        okLabel,
       ],
     ],
   );
@@ -150,9 +170,23 @@ function buildSummary(
     }),
   );
 
-  const failures = all
-    .filter((s) => !s.success)
-    .map((s) => `- **${s.caseId}**: ${s.error}`);
+  // Every run that missed something it was expected to do.
+  const expectedSlides = new Map(cases.map((c) => [c.id, c.expectedSlides]));
+  const failures = all.flatMap((s) => {
+    const problems = s.success
+      ? [
+          ...(s.slideCountMatch === false
+            ? [
+                `${s.slideCount} slides (asked for ${expectedSlides.get(s.caseId)})`,
+              ]
+            : []),
+          ...s.structureProblems,
+        ]
+      : [s.error ?? "failed"];
+    return problems.length > 0
+      ? [`- **${s.caseId}**: ${problems.join("; ")}`]
+      : [];
+  });
 
   return [
     "# Deck generation",
@@ -160,6 +194,7 @@ function buildSummary(
     "Prompts from `evals/cases/generation-prompts.json`, sent to the running app's streaming `/api/generate` endpoint. Times are measured from sending the request. See `evals/README.md` for metric definitions.",
     "",
     runMetadata({
+      run: runId,
       model: OPENAI_MODEL,
       prompts: cases.length,
       "runs per prompt": runs,
@@ -186,7 +221,7 @@ function buildSummary(
     "",
     perPrompt,
     "",
-    `## Failed runs (${failures.length})`,
+    `## Runs that missed an expectation (${failures.length})`,
     "",
     failures.length > 0 ? failures.join("\n") : "None.",
   ].join("\n");
@@ -196,8 +231,8 @@ async function main() {
   const options = parseEvalOptions();
   await assertAppRunning(options.baseUrl);
 
-  const cases = loadGenerationCases().filter(
-    (c) => !options.filter || c.id.includes(options.filter),
+  const cases = loadGenerationCases().filter((c) =>
+    matchesFilter(options.filter, c.id),
   );
   if (cases.length === 0) throw new Error("No prompts match --filter");
 
@@ -218,13 +253,18 @@ async function main() {
     console.log(`${testCase.id.padEnd(30)} asked ${asked}, got ${counts}`);
   }
 
-  const summary = buildSummary(cases, scoresByCase, options.runs);
-  const rawFile = writeRawResults(EVAL_NAME, {
+  const summary = buildSummary(
+    cases,
+    scoresByCase,
+    options.runs,
+    options.runId,
+  );
+  const rawFile = writeRawResults(EVAL_NAME, options.runId, {
     options,
     model: OPENAI_MODEL,
     results: Object.fromEntries(scoresByCase),
   });
-  const summaryFile = writeSummary(EVAL_NAME, summary);
+  const summaryFile = writeSummary(EVAL_NAME, options.runId, summary);
 
   console.log(`\n${summary}\n`);
   console.log(`Raw results: ${rawFile}`);

@@ -5,6 +5,7 @@ import { estimateCostUsd, priceFor } from "../pricing";
 import {
   loadGenerationCases,
   scoreGenerationRun,
+  structureProblems,
   type GenerationCase,
 } from "./generationCases";
 import type { SSEResult, TimedEvent } from "./sse";
@@ -118,6 +119,75 @@ describe("scoreGenerationRun", () => {
     expect(scoreGenerationRun(asksForThree, stream()).error).toBe(
       "stream ended without a deck",
     );
+  });
+});
+
+describe("structureProblems", () => {
+  const closing = materializeSlide(
+    { type: "content", title: "Thanks", body: [] },
+    "s4",
+  );
+
+  it("accepts title first, one chart and one image on different middle slides, closing last", () => {
+    expect(
+      structureProblems({ ...deck, slides: [...slides, closing] }),
+    ).toEqual([]);
+  });
+
+  it("names each broken rule", () => {
+    // 3 slides: the image slide is also the last slide.
+    expect(structureProblems(deck)).toEqual([
+      "image on the last slide",
+      "3 slides (the structure needs 4)",
+    ]);
+    const noTitle = { ...deck, slides: [slides[1], slides[2], closing] };
+    expect(structureProblems(noTitle)).toContain("chart on the first slide");
+    expect(structureProblems(noTitle)).toContain(
+      "first slide is not a title slide",
+    );
+  });
+
+  it("flags missing, duplicated and shared chart/image blocks", () => {
+    const both = materializeSlide(
+      {
+        type: "content",
+        title: "Both",
+        body: [
+          { type: "chart", chartType: "pie", data: [{ label: "A", value: 1 }] },
+          { type: "image", url: null, alt: "x" },
+        ],
+      },
+      "s5",
+    );
+    const problems = structureProblems({
+      ...deck,
+      slides: [slides[0], slides[1], both, closing],
+    });
+    expect(problems).toEqual([
+      "2 chart blocks (expected 1)",
+      "chart and image on the same slide (3)",
+    ]);
+    expect(
+      structureProblems({ ...deck, slides: [slides[0], closing, closing] }),
+    ).toEqual(
+      expect.arrayContaining([
+        "0 chart blocks (expected 1)",
+        "0 image blocks (expected 1)",
+      ]),
+    );
+  });
+
+  it("is recorded on every successful run, with the slide content", () => {
+    const score = scoreGenerationRun(
+      asksForThree,
+      stream(["done", { deck }, 100]),
+    );
+    expect(score.structureProblems).toHaveLength(2);
+    expect(score.slides?.map((s) => s.title)).toEqual([
+      "Intro",
+      "Numbers",
+      "Picture",
+    ]);
   });
 });
 

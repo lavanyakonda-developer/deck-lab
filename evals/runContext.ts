@@ -7,7 +7,7 @@
 // stored under its --label; the CSV and summary combine the latest run of
 // every label. See evals/README.md for the exact steps.
 //
-//   npm run eval:context -- --label capped-10 [--runs 3] [--base-url ...]
+//   npm run eval:context -- --run-id run-2 --label capped-10 [--runs 3] [--base-url ...]
 
 import "./lib/loadEnv";
 import { OPENAI_MODEL } from "@/lib/ai/openaiClient";
@@ -21,7 +21,9 @@ import {
   growthStats,
   historyAfterTurn,
   loadConversation,
+  noToolCallTurns,
   perTurnMeans,
+  turnReply,
   turnUsage,
   type HistoryMessage,
   type TurnRecord,
@@ -34,6 +36,7 @@ import {
   writeRawResults,
   writeSummary,
 } from "./lib/results";
+import { actualCalls } from "./lib/editCases";
 import { eventsOfType, postSSE } from "./lib/sse";
 import { formatNumber, formatPercent, mean } from "./lib/stats";
 import { estimateCostUsd } from "./pricing";
@@ -73,11 +76,18 @@ async function playConversation(
 
     records.push({
       turn: i + 1,
+      message,
       promptTokens: usage?.promptTokens,
       completionTokens: usage?.completionTokens,
       historySent: history.length,
       slideCount: deck.slides.length,
       toolCalls,
+      calls: actualCalls(result).map((c) => c.label),
+      invalidCalls: eventsOfType<{ tool: string; error: string }>(
+        events,
+        "invalid-tool-call",
+      ).map((c) => `${c.tool}: ${c.error}`),
+      reply: turnReply(events),
       error,
     });
 
@@ -107,15 +117,39 @@ async function playConversation(
 }
 
 // The most recent run of every label, in the order they were first run.
-function latestRunPerLabel(): ContextRun[] {
+function latestRunPerLabel(runId: string): ContextRun[] {
   const byLabel = new Map<string, ContextRun>();
-  for (const { data } of readRawResults<ContextRun>(EVAL_NAME)) {
+  for (const { data } of readRawResults<ContextRun>(EVAL_NAME, runId)) {
     byLabel.set(data.label, data);
   }
   return [...byLabel.values()];
 }
 
-function buildSummary(runs: ContextRun[], turnCount: number): string {
+function noToolTurnsSection(runs: ContextRun[]): string[] {
+  return runs.flatMap((run) => {
+    const turns = noToolCallTurns(run.conversations);
+    const lines = turns.map((t) => {
+      const reply = t.reply.replace(/\s+/g, " ");
+      const shortReply = reply.length > 200 ? `${reply.slice(0, 200)}…` : reply;
+      const rejected = t.invalidCalls.length
+        ? ` (rejected: ${t.invalidCalls.join("; ")})`
+        : "";
+      return `- run ${t.run}, turn ${t.turn}: "${t.message}" → "${shortReply}"${rejected}`;
+    });
+    return [
+      `### ${run.label} (${turns.length} of ${run.conversations.length * run.conversations[0].length} turns)`,
+      "",
+      lines.length > 0 ? lines.join("\n") : "None.",
+      "",
+    ];
+  });
+}
+
+function buildSummary(
+  runs: ContextRun[],
+  turnCount: number,
+  runId: string,
+): string {
   const turnsByLabel = Object.fromEntries(
     runs.map((run) => [run.label, perTurnMeans(run.conversations)]),
   );
@@ -173,11 +207,18 @@ function buildSummary(runs: ContextRun[], turnCount: number): string {
     `A scripted ${turnCount}-turn editing conversation on the seed deck (\`evals/cases/context-conversation.json\`), sent to \`/api/chat\` with the deck and chat history carried forward the way the chat panel does. Each row is one server configuration (\`CHAT_MAX_HISTORY_MESSAGES\`), labelled when it was run. Per-turn prompt tokens for plotting are in \`context-growth.csv\`. See \`evals/README.md\` for details.`,
     "",
     runMetadata({
+      run: runId,
       model: runs.map((r) => r.model).join(", "),
       runs: runs.map((r) => `${r.label} (${r.date})`).join(", "),
     }),
     "",
     table + comparison,
+    "",
+    "## Turns without a tool call",
+    "",
+    "Every scripted message asks for an edit, so each of these is a miss. Later messages refer to slide numbers that assume earlier turns worked, so one miss can cause the next.",
+    "",
+    ...noToolTurnsSection(runs),
   ].join("\n");
 }
 
@@ -188,8 +229,8 @@ async function main() {
     throw new Error(
       [
         "Pass --label to name this run (letters, digits, - and _), matching how the server was started:",
-        "  capped (default):  npm run dev                               then  npm run eval:context -- --label capped-10",
-        "  uncapped:          CHAT_MAX_HISTORY_MESSAGES=0 npm run dev   then  npm run eval:context -- --label uncapped",
+        "  capped (default):  npm run dev                               then  npm run eval:context -- --run-id <id> --label capped-10",
+        "  uncapped:          CHAT_MAX_HISTORY_MESSAGES=0 npm run dev   then  npm run eval:context -- --run-id <id> --label uncapped",
       ].join("\n"),
     );
   }
@@ -215,11 +256,12 @@ async function main() {
     date: new Date().toISOString().slice(0, 10),
     conversations,
   };
-  const rawFile = writeRawResults(EVAL_NAME, run);
+  const rawFile = writeRawResults(EVAL_NAME, options.runId, run);
 
-  const runs = latestRunPerLabel();
+  const runs = latestRunPerLabel(options.runId);
   const csvFile = writeSummary(
     EVAL_NAME,
+    options.runId,
     growthCsv(
       Object.fromEntries(
         runs.map((r) => [r.label, perTurnMeans(r.conversations)]),
@@ -227,8 +269,8 @@ async function main() {
     ),
     "csv",
   );
-  const summary = buildSummary(runs, messages.length);
-  const summaryFile = writeSummary(EVAL_NAME, summary);
+  const summary = buildSummary(runs, messages.length, options.runId);
+  const summaryFile = writeSummary(EVAL_NAME, options.runId, summary);
 
   console.log(`\n${summary}\n`);
   console.log(`Raw results: ${rawFile}`);
@@ -236,7 +278,7 @@ async function main() {
   console.log(`Summary:     ${summaryFile}`);
   if (runs.length < 2) {
     console.log(
-      "\nOnly one label so far. Restart the server with the other CHAT_MAX_HISTORY_MESSAGES setting and run again with a different --label to compare.",
+      "\nOnly one label so far. Restart the server with the other CHAT_MAX_HISTORY_MESSAGES setting and run again with the same --run-id and a different --label to compare.",
     );
   }
 }

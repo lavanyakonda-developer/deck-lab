@@ -4,7 +4,9 @@ import {
   growthStats,
   historyAfterTurn,
   loadConversation,
+  noToolCallTurns,
   perTurnMeans,
+  turnReply,
   type TurnRecord,
 } from "./context";
 import type { TimedEvent } from "./sse";
@@ -56,11 +58,15 @@ function record(
 ): TurnRecord {
   return {
     turn,
+    message: `message ${turn}`,
     promptTokens,
     completionTokens: promptTokens === undefined ? undefined : 10,
     historySent: (turn - 1) * 2,
     slideCount: 6,
     toolCalls,
+    calls: toolCalls > 0 ? ["update_slide(slide-1)"] : [],
+    invalidCalls: [],
+    reply: toolCalls > 0 ? "Done — updated a slide." : "Should I?",
     error: promptTokens === undefined ? "boom" : undefined,
   };
 }
@@ -93,6 +99,35 @@ describe("perTurnMeans / growthStats", () => {
       totalPromptTokens: 400,
       totalCompletionTokens: 20,
     });
+  });
+});
+
+describe("turnReply / noToolCallTurns", () => {
+  it("uses the final reply, or the streamed text when there is none", () => {
+    expect(turnReply([ev("done", { reply: "Done." })])).toBe("Done.");
+    expect(
+      turnReply([
+        ev("text-delta", { text: "Sh" }),
+        ev("text-delta", { text: "all I?" }),
+      ]),
+    ).toBe("Shall I?");
+  });
+
+  it("lists turns without a tool call, with message and reply, skipping errors", () => {
+    expect(
+      noToolCallTurns([
+        [record(1, 100), record(2, 100, 0)],
+        [record(1, undefined, 0), record(2, 100, 1)],
+      ]),
+    ).toEqual([
+      {
+        run: 1,
+        turn: 2,
+        message: "message 2",
+        reply: "Should I?",
+        invalidCalls: [],
+      },
+    ]);
   });
 });
 

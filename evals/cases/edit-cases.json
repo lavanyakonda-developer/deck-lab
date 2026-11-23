@@ -383,6 +383,103 @@
     "expect": { "tool": "update_slide", "slideId": "slide-4" }
   },
   {
+    "id": "named-selected-by-number",
+    "category": "named-and-selected",
+    "message": "Make slide 3 more concise",
+    "selectedSlideId": "slide-3",
+    "expect": { "tool": "update_slide", "slideId": "slide-3" }
+  },
+  {
+    "id": "named-selected-by-title",
+    "category": "named-and-selected",
+    "message": "Change the title of the \"Why A Schema Matters\" slide to \"Schemas Are Contracts\"",
+    "selectedSlideId": "slide-3",
+    "expect": { "tool": "update_slide", "slideId": "slide-3" }
+  },
+  {
+    "id": "named-selected-delete",
+    "category": "named-and-selected",
+    "message": "Delete slide 6",
+    "selectedSlideId": "slide-6",
+    "expect": { "tool": "delete_slide", "slideId": "slide-6" }
+  },
+  {
+    "id": "sel-other-update-by-number",
+    "category": "named-with-selection",
+    "message": "Change the title of slide 3 to 'Schemas Are Contracts'",
+    "selectedSlideId": "slide-5",
+    "expect": { "tool": "update_slide", "slideId": "slide-3" }
+  },
+  {
+    "id": "sel-same-update-by-number",
+    "category": "named-with-selection",
+    "message": "Change the title of slide 3 to 'Schemas Are Contracts'",
+    "selectedSlideId": "slide-3",
+    "expect": { "tool": "update_slide", "slideId": "slide-3" }
+  },
+  {
+    "id": "sel-other-update-by-title",
+    "category": "named-with-selection",
+    "message": "Rename the 'Slide Types At A Glance' slide to 'Supported Layouts'",
+    "selectedSlideId": "slide-2",
+    "expect": { "tool": "update_slide", "slideId": "slide-6" }
+  },
+  {
+    "id": "sel-same-update-by-title",
+    "category": "named-with-selection",
+    "message": "Rename the 'Slide Types At A Glance' slide to 'Supported Layouts'",
+    "selectedSlideId": "slide-6",
+    "expect": { "tool": "update_slide", "slideId": "slide-6" }
+  },
+  {
+    "id": "sel-other-delete",
+    "category": "named-with-selection",
+    "message": "Delete slide 5",
+    "selectedSlideId": "slide-1",
+    "expect": { "tool": "delete_slide", "slideId": "slide-5" }
+  },
+  {
+    "id": "sel-same-delete",
+    "category": "named-with-selection",
+    "message": "Delete slide 5",
+    "selectedSlideId": "slide-5",
+    "expect": { "tool": "delete_slide", "slideId": "slide-5" }
+  },
+  {
+    "id": "sel-other-change-layout",
+    "category": "named-with-selection",
+    "message": "Change slide 3 to a two-column layout",
+    "selectedSlideId": "slide-6",
+    "expect": {
+      "tools": [{ "tool": "change_layout", "slideId": "slide-3" }],
+      "optional": [{ "tool": "update_slide", "slideId": "slide-3" }]
+    }
+  },
+  {
+    "id": "sel-same-change-layout",
+    "category": "named-with-selection",
+    "message": "Change slide 3 to a two-column layout",
+    "selectedSlideId": "slide-3",
+    "expect": {
+      "tools": [{ "tool": "change_layout", "slideId": "slide-3" }],
+      "optional": [{ "tool": "update_slide", "slideId": "slide-3" }]
+    }
+  },
+  {
+    "id": "sel-other-add",
+    "category": "named-with-selection",
+    "message": "Add a slide about pricing after slide 3",
+    "selectedSlideId": "slide-6",
+    "expect": { "tool": "add_slide", "position": 4 }
+  },
+  {
+    "id": "sel-same-add",
+    "category": "named-with-selection",
+    "message": "Add a slide about pricing after slide 3",
+    "selectedSlideId": "slide-3",
+    "expect": { "tool": "add_slide", "position": 4 }
+  },
+  {
     "id": "ambiguous-make-better",
     "category": "ambiguous-no-selection",
     "message": "Make it better",
