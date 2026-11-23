@@ -379,3 +379,31 @@ export function validateToolCall(
       return null;
   }
 }
+
+const TOOL_ARGS_SCHEMAS: Record<string, z.ZodTypeAny> = {
+  generate_deck: GenerateDeckArgsSchema,
+  add_slide: AddSlideArgsSchema,
+  update_slide: UpdateSlideArgsSchema,
+  delete_slide: DeleteSlideArgsSchema,
+  reorder_slides: ReorderSlidesArgsSchema,
+  change_layout: ChangeLayoutArgsSchema,
+};
+
+export type ToolCallCheck =
+  { ok: true; call: ValidatedToolCall } | { ok: false; error: string };
+
+// validateToolCall plus the reason a call was rejected, so a dropped call
+// can be reported instead of disappearing.
+export function checkToolCall(name: string, rawArgs: unknown): ToolCallCheck {
+  const call = validateToolCall(name, rawArgs);
+  if (call) return { ok: true, call };
+  const schema = TOOL_ARGS_SCHEMAS[name];
+  if (!schema) return { ok: false, error: `unknown tool "${name}"` };
+  const result = schema.safeParse(rawArgs);
+  const issues = result.success
+    ? "rejected"
+    : result.error.issues
+        .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+        .join("; ");
+  return { ok: false, error: issues };
+}

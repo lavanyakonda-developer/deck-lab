@@ -10,7 +10,7 @@ import { formatSSE } from "@/lib/ai/sse";
 import { IncrementalJsonObjectExtractor } from "@/lib/ai/streamParser";
 import {
   TOOL_DEFINITIONS,
-  validateToolCall,
+  checkToolCall,
   type ValidatedToolCall,
 } from "@/lib/ai/tools";
 import {
@@ -194,8 +194,17 @@ export async function POST(request: Request) {
             if (!argsDelta) continue;
 
             for (const rawArgs of state.extractor.feed(argsDelta)) {
-              const validated = validateToolCall(state.name, rawArgs);
-              if (!validated) continue;
+              const checked = checkToolCall(state.name, rawArgs);
+              if (!checked.ok) {
+                // Not applied, but reported so a rejected call is
+                // distinguishable from the model answering in text.
+                emit("invalid-tool-call", {
+                  tool: state.name,
+                  error: checked.error,
+                });
+                continue;
+              }
+              const validated = checked.call;
 
               if (validated.tool === "generate_deck") {
                 generateDeckPrompt = validated.args.prompt;

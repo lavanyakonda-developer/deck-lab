@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TOOL_DEFINITIONS, validateToolCall } from "./tools";
+import { checkToolCall, TOOL_DEFINITIONS, validateToolCall } from "./tools";
 
 describe("TOOL_DEFINITIONS", () => {
   it("defines generate_deck plus the five spec'd editing tools", () => {
@@ -151,5 +151,27 @@ describe("validateToolCall", () => {
       layout: null,
     });
     expect(result).toBeNull();
+  });
+});
+
+describe("checkToolCall", () => {
+  it("returns the validated call when the arguments are valid", () => {
+    expect(checkToolCall("delete_slide", { id: "slide-2" })).toEqual({
+      ok: true,
+      call: { tool: "delete_slide", args: { id: "slide-2" } },
+    });
+  });
+
+  it("explains why invalid arguments were rejected", () => {
+    const result = checkToolCall("delete_slide", {});
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error).toMatch(/^id: /);
+  });
+
+  it("rejects an unknown tool by name", () => {
+    expect(checkToolCall("delete_deck", {})).toEqual({
+      ok: false,
+      error: 'unknown tool "delete_deck"',
+    });
   });
 });

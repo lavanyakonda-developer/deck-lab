@@ -197,7 +197,7 @@ describe("POST /api/chat", () => {
     expect(events.at(-1)?.event).toBe("done");
   });
 
-  it("drops an invalid tool call silently (no tool-call event) but the stream still completes", async () => {
+  it("reports an invalid tool call instead of applying it, and the stream still completes", async () => {
     mockCreate.mockResolvedValue(
       // missing required "id"
       makeChunkStream(toolCallDeltas(0, "delete_slide", {})),
@@ -207,6 +207,10 @@ describe("POST /api/chat", () => {
     );
     const events = await readSSE(response);
     expect(events.filter((e) => e.event === "tool-call")).toHaveLength(0);
+    const invalid = events.filter((e) => e.event === "invalid-tool-call");
+    expect(invalid).toHaveLength(1);
+    expect(invalid[0].data).toMatchObject({ tool: "delete_slide" });
+    expect((invalid[0].data as { error: string }).error).toContain("id");
     expect(events.at(-1)).toEqual({
       event: "done",
       data: { reply: "I didn't make any changes." },
