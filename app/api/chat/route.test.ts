@@ -515,7 +515,62 @@ describe("POST /api/chat", () => {
     expect(instructions).toMatch(
       /whether the named slide is the selected one or a different one/i,
     );
-    expect(instructions).toMatch(/Only when the message names NO slide/);
+    // Slide 2 is named, so the marker is dropped and the confirm-first rule
+    // isn't sent at all.
+    expect(instructions).not.toMatch(/do NOT call a tool yet/i);
+  });
+
+  it("leaves out the confirm-first rule when no slide is selected, and says open-ended edits to a named slide are direct", async () => {
+    mockCreate.mockResolvedValue(makeChunkStream([]));
+    await POST(makeRequest({ message: "Make slide 2 more concise", deck }));
+
+    const instructions =
+      mockCreate.mock.calls[0][0].messages[0].content.split("Current deck:")[0];
+    expect(instructions).not.toMatch(/do NOT call a tool yet/i);
+    expect(instructions).not.toMatch(/First ask for confirmation/);
+    expect(instructions).toMatch(
+      /open-ended or subjective edits to a named slide/,
+    );
+    expect(instructions).toMatch(
+      /Never reply to a request that names a slide with a question/,
+    );
+  });
+
+  it("sends the confirm-first rule only when the deck context marks a selected slide", async () => {
+    mockCreate.mockResolvedValue(makeChunkStream([]));
+    await POST(
+      makeRequest({
+        message: "make the intro slide shorter",
+        deck,
+        selectedSlideId: "a",
+      }),
+    );
+    await POST(
+      makeRequest({
+        message: "change the title to X",
+        deck,
+        selectedSlideId: "not-a-slide",
+      }),
+    );
+
+    const [marked, unknown] = mockCreate.mock.calls.map(
+      (call) => call[0].messages[0].content as string,
+    );
+    expect(marked.split("Current deck:")[1]).toContain("currently selected");
+    expect(marked.split("Current deck:")[0]).toMatch(/do NOT call a tool yet/i);
+    expect(marked.split("Current deck:")[0]).not.toMatch(
+      /the user has no slide selected/i,
+    );
+    // An id that isn't in the deck marks nothing, so it's the no-selection case.
+    expect(unknown.split("Current deck:")[1]).not.toContain(
+      "currently selected",
+    );
+    expect(unknown.split("Current deck:")[0]).not.toMatch(
+      /do NOT call a tool yet/i,
+    );
+    expect(unknown.split("Current deck:")[0]).toMatch(
+      /the user has no slide selected/i,
+    );
   });
 
   it("instructs the model never to claim a selection when no slide is marked", async () => {
@@ -561,16 +616,19 @@ describe("POST /api/chat", () => {
 
   it("describes the confirmation format in words, without a literal example", async () => {
     mockCreate.mockResolvedValue(makeChunkStream([]));
-    await POST(makeRequest({ message: "change the title to X", deck }));
+    await POST(
+      makeRequest({
+        message: "change the title to X",
+        deck,
+        selectedSlideId: "a",
+      }),
+    );
     const instructions =
       mockCreate.mock.calls[0][0].messages[0].content.split("Current deck:")[0];
     expect(instructions).toMatch(
       /by its number \(as "slide N"\) and its exact current title/,
     );
     expect(instructions).not.toMatch(/Update slide \d/);
-    expect(instructions).toMatch(
-      /This rule never applies when a slide IS marked/,
-    );
   });
 
   it("sends the chat request at temperature 0.2", async () => {

@@ -24,7 +24,7 @@ const HistoryMessageSchema = z.object({
   content: z.string(),
 });
 
-const SYSTEM_INSTRUCTIONS = `You are the AI behind a presentation deck builder. You have tools to add, update, delete, and reorder slides, to change a slide's layout/type, and to generate a brand new deck from scratch.
+const RULES_BEFORE_SELECTION = `You are the AI behind a presentation deck builder. You have tools to add, update, delete, and reorder slides, to change a slide's layout/type, and to generate a brand new deck from scratch.
 
 Rules:
 - If the user is asking for an entirely new/different presentation (not a change to the current one), call generate_deck with a prompt describing what they want - this includes a first-ever message that describes a topic to build a deck about, since the current deck may just be an unedited starting point. Do not combine generate_deck with any other tool call in the same turn.
@@ -36,11 +36,20 @@ Rules:
 - For update_slide, if you are changing any part of the body (e.g. one bullet, one table cell), you must supply the FULL new body array reflecting that one change, since body replaces the slide's entire body - do not drop unrelated content blocks.
 - change_layout only changes a slide's "type" and layout hints - it does NOT touch body content. If the request implies reshaping the actual content (e.g. "change it to a table", "turn these bullets into a comparison"), you must ALSO call update_slide with a new body containing a properly-shaped content block (e.g. a "table" block with real headers/rows derived from the existing content) in the SAME turn - change_layout alone would leave the old content block behind, rendering nothing.
 - The conversation history below is real - if you previously asked a clarifying question or a confirmation and the user's next message answers it (e.g. a slide number, "yes", "the bullets one"), resolve it using that history and proceed with a tool call. Do not ask the same question again.
-- The "Current deck" section below is always the true, up-to-date state - it already reflects any manual edits the user made directly on the canvas, which you are never told about as a chat message. Never answer a question about a slide's current content (title, text, etc.), or assume what a slide contains, from something you or the user said earlier in this conversation - the deck can change between turns without a chat message announcing it. Always re-check the Current deck section for the current, real content before answering or acting, even if it contradicts what you said in an earlier turn.
-- If the user's message names a slide - by number ("slide 3"), by title, or by a clear description ("the pricing slide") - act on that slide directly with the tool call. Do NOT ask for confirmation first. This holds whether or not any slide is marked as selected, and whether the named slide is the selected one or a different one. The selection marker never overrides, and never adds a confirmation step to, a slide the user named. Example: if slide 3 is marked selected and the user says "change the title of slide 3 to X" or "delete slide 10", make that tool call on slide 3 or slide 10 right away.
-- Only when the message names NO slide (e.g. "change the title to X", "make this more concise", "add a bullet about pricing") and the deck context below marks one slide as "(currently selected/viewed by the user)": do NOT call a tool yet. First ask for confirmation in your normal text response, as one short question that names the marked slide by its number (as "slide N") and its exact current title, and briefly restates the change you would make. Only make the tool call once the user's next message confirms (e.g. "yes", "yep", "correct") - use the conversation history above to see that confirmation, per the rule above. If their reply names a different slide or corrects the change instead of confirming, use what they actually said.
-- Only when the message names no slide AND no slide at all in the deck context is marked "(currently selected/viewed by the user)": the user has no slide selected, so ask which slide they mean. In that case only, never say, suggest, or assume that any slide is selected, current, open, or being viewed, and never propose one particular slide as the likely target - leave the choice to the user. This rule never applies when a slide IS marked - then use the confirmation rule above.
-- If the request is ambiguous or could reasonably mean several different things, ask a clarifying question in your normal text response instead of guessing with a tool call.
+- The "Current deck" section below is always the true, up-to-date state - it already reflects any manual edits the user made directly on the canvas, which you are never told about as a chat message. Never answer a question about a slide's current content (title, text, etc.), or assume what a slide contains, from something you or the user said earlier in this conversation - the deck can change between turns without a chat message announcing it. Always re-check the Current deck section for the current, real content before answering or acting, even if it contradicts what you said in an earlier turn.`;
+
+// The selection rules are chosen per request from what the deck context
+// actually shows. The confirm-first rule is only sent when a slide is
+// marked as selected: sent unconditionally, the model applied it to
+// open-ended edits on named slides ("make slide 2 more concise") and asked
+// "To confirm...?" instead of editing.
+const NAMED_SLIDE_RULE = `- If the user's message names a slide - by number ("slide 3"), by title, or by a clear description ("the pricing slide") - act on that slide directly with the tool call in this same response. Do NOT ask for confirmation first. This holds whether or not any slide is marked as selected, and whether the named slide is the selected one or a different one. It also holds for open-ended or subjective edits to a named slide ("make slide 2 more concise", "make the comparison slide punchier", "add a bullet about pricing to slide 4", "rewrite slide 3 in a friendlier tone"): the user has said which slide and what kind of change, so make your best edit right away - they see it immediately and can undo it. Never reply to a request that names a slide with a question such as "To confirm, would you like me to...".`;
+
+const CONFIRM_SELECTED_RULE = `- Only when the message names NO slide (e.g. "change the title to X", "make this shorter") and the deck context below marks one slide as "(currently selected/viewed by the user)": do NOT call a tool yet. First ask for confirmation in your normal text response, as one short question that names the marked slide by its number (as "slide N") and its exact current title, and briefly restates the change you would make. Only make the tool call once the user's next message confirms (e.g. "yes", "yep", "correct") - use the conversation history above to see that confirmation, per the rule above. If their reply names a different slide or corrects the change instead of confirming, use what they actually said.`;
+
+const NO_SELECTION_RULE = `- No slide is marked as selected in the deck context below, so the user has no slide selected. Only when the message names no slide: ask which slide they mean. Never say, suggest, or assume that any slide is selected, current, open, or being viewed, and never propose one particular slide as the likely target - leave the choice to the user.`;
+
+const RULES_AFTER_SELECTION = `- If the request is ambiguous or could reasonably mean several different things, ask a clarifying question in your normal text response instead of guessing with a tool call. A message that names a slide is never ambiguous about which slide: an open-ended change to that slide is a request to edit it, not a reason to ask.
 - Never claim in your text response that you performed an action - reordered, added, deleted, updated, or changed the layout of a slide - unless you actually called the corresponding tool in this SAME response. Saying "Done" or describing a change without the matching tool call leaves the deck completely unchanged while telling the user otherwise - if a request calls for a change, make the tool call; only describe it as done once you have.
 - Body content blocks: "bullets" and "paragraph" are the default. Use a "table" block for tabular data, a "chart" block (chartType "bar"/"line"/"pie", data as [{label, value}]) for quantitative content the user asks to visualize (e.g. "show this as a chart") - use the user's or the deck's own figures when there are any and don't call them illustrative; if you have to invent the figures, set the chart's caption to say so (e.g. "Illustrative figures"), and an "image" block (only "alt" describing what's wanted - you never provide a "url", the actual image is generated afterward via a separate call) when the user explicitly asks for an image/photo/picture.`;
 
@@ -48,8 +57,12 @@ Rules:
 // deterministic, while replies and generated content keep some variety.
 const CHAT_TEMPERATURE = 0.2;
 
-function buildSystemPrompt(deckContext: string): string {
-  return `${SYSTEM_INSTRUCTIONS}\n\nCurrent deck:\n${deckContext}`;
+function buildSystemPrompt(deckContext: string, slideMarked: boolean): string {
+  const selectionRules = [
+    NAMED_SLIDE_RULE,
+    slideMarked ? CONFIRM_SELECTED_RULE : NO_SELECTION_RULE,
+  ].join("\n");
+  return `${RULES_BEFORE_SELECTION}\n${selectionRules}\n${RULES_AFTER_SELECTION}\n\nCurrent deck:\n${deckContext}`;
 }
 
 function summarizeToolCalls(toolCalls: ValidatedToolCall[]): string {
@@ -129,13 +142,17 @@ export async function POST(request: Request) {
 
       try {
         const client = getOpenAIClient();
+        // A slide named by number or exact title drops the selection
+        // marker, so the model can't mistake it for the confirm-first case.
+        const markedSlideId = messageNamesSlide(trimmedMessage, deckResult.data)
+          ? null
+          : currentSlideId;
+        const slideMarked = deckResult.data.slides.some(
+          (slide) => slide.id === markedSlideId,
+        );
         const systemPrompt = buildSystemPrompt(
-          serializeDeckContext(
-            deckResult.data,
-            messageNamesSlide(trimmedMessage, deckResult.data)
-              ? null
-              : currentSlideId,
-          ),
+          serializeDeckContext(deckResult.data, markedSlideId),
+          slideMarked,
         );
         const messages = [
           { role: "system" as const, content: systemPrompt },
