@@ -1,107 +1,109 @@
-# Deck Lab — AI Presentation Maker
+# Deck Lab: AI presentation maker
 
-## 📖 About
+## About
 
 Most AI presentation tools are good at the first draft and bad at everything
 after it. Ask them for one small change and they regenerate the whole deck, and
 any fix you made by hand is gone.
 
-Deck Lab is built around the opposite idea: **after the first draft, the AI
-only ever touches what you ask it to.** You start with a prompt ("a 6-slide
-pitch for a coffee subscription startup") and get a complete deck with a title
-slide, content slides, a chart, an AI-generated image and a closing slide. From
-there you can keep talking to it ("make slide 3 more concise", "turn these
-bullets into a table") or edit directly on the canvas, the way you would in
-Google Slides. Both kinds of edits go through the same set of actions, so the
-AI never overwrites your manual changes and you can undo either one.
+Deck Lab works the other way round. After the first draft, the AI only touches
+what you ask it to. You start with a prompt ("a 6-slide pitch for a coffee
+subscription startup") and get a complete deck with a title slide, content
+slides, a chart, an AI-generated image and a closing slide. From there you can
+keep talking to it ("make slide 3 more concise", "turn these bullets into a
+table") or edit directly on the canvas, the way you would in Google Slides.
+Both kinds of edits go through the same set of actions, so the AI never
+overwrites your manual changes and you can undo either one.
 
 When you're done, you download the deck as a PowerPoint or PDF file, with the
-theme you picked and every element exactly where you placed it.
+theme you picked and every element where you placed it.
 
-🔗 **Link to the project:** https://deck-lab-vert.vercel.app/
+Live app: https://deck-lab-vert.vercel.app/
 
-## ✨ Features
+## Features
 
-### 🤖 AI-powered generation
+### Generating a deck
 
-- **Prompt-to-deck** — type a topic and get a complete, well-structured
-  presentation: a title slide, content slides, a data chart, an AI-generated
-  image and a closing summary. Ask for a specific number of slides ("five
-  slides", "a 6-slide deck") and you get exactly that.
-- **Live streaming** — slides appear on screen one by one as the model writes
-  them, and chat replies type out in real time. No spinner-then-dump.
-- **AI-generated images** — each image is created from a short description in
-  the background. The slide shows a placeholder right away and the image fills
-  in when it's ready, so it never holds up the rest of the deck.
-- **Charts and tables** — bar, line and pie charts plus data tables. When the
-  AI has to invent example figures for a chart, it labels them as illustrative.
+Type a topic and you get a full presentation: a title slide, content slides, a
+data chart, an AI-generated image and a closing summary. If you ask for a
+specific number of slides ("five slides", "a 6-slide deck"), you get exactly
+that many.
 
-### 💬 Conversational editing (agentic tool use)
+Slides appear one by one as the model writes them, and chat replies type out
+as they stream in, so you never sit watching a spinner.
 
-- **Chat to refine** — "make slide 3 more concise", "add a pricing slide after
-  the intro", "turn this into a table", "move the summary to the end".
-- **The AI picks the tool** — the model decides between `add_slide`,
-  `update_slide`, `delete_slide`, `reorder_slides`, `change_layout` or
-  generating a whole new deck, based on what you ask.
-- **Targeted, diff-based edits** — only the slides you mention change. The
-  rest of the deck, including your manual edits, is left untouched.
-- **Knows what you're looking at** — if you say "change the title to X"
-  without naming a slide, it offers to change the slide you have open and
-  waits for a "yes". If you name a slide ("slide 4", or by its title), it
-  edits that slide directly.
+Images are generated in the background from a short description. The slide
+shows a placeholder right away and the image fills in when it's ready, so a
+slow image never holds up the rest of the deck.
 
-### ✍️ Manual editing (Google Slides-style canvas)
+Charts can be bar, line or pie, and slides can also hold data tables. When the
+AI has to make up example figures for a chart, it labels them as illustrative.
 
-- **Everything is an element** — titles, text, bullets, tables, charts,
-  images and shapes can each be selected, dragged, resized (Shift keeps
-  proportions), nudged with the arrow keys or deleted, with snapping guides to
-  the slide and to other elements.
-- **Insert** — text boxes, bullet lists, rectangles, ellipses, tables and
-  images uploaded from your computer.
-- **Format** — font size, bold, italic and alignment for text; border colour
-  for shapes; switch a chart between bar, line and pie; replace an image.
-- **Click-to-edit text** — click a selected element again (or double-click)
-  to type into titles, bullets, paragraphs and table cells.
-- **Add, delete and drag-to-reorder slides** from the thumbnail rail.
-- **Five starting layouts** — title, content, two-column, comparison and
-  table. A layout only places elements initially; after that you can
-  rearrange freely.
-- **Undo / redo for everything** — one history covers both AI and manual
-  changes, so you can undo an AI edit exactly like a manual one. Use the
-  toolbar buttons or `⌘Z` / `⌘⇧Z` (`Ctrl+Z` / `Ctrl+Shift+Z` on Windows).
-  While you're typing inside a text box, the shortcut undoes your typing
-  instead, as you'd expect.
-- **Slide themes** — five colour themes (Classic Light, Midnight, Corporate
-  Blue, Warm Sand, Forest), picked from a dropdown. A theme changes the
-  slides' background, text, accent and chart colours, and it carries through
-  to the downloaded files.
-- **One-click download** — export to **PDF** or **PowerPoint (PPTX)** with no
-  print dialog. Every element lands at its exact on-canvas position with its
-  formatting and theme. Charts are drawn as real vector graphics (not
-  screenshots), and text in the PowerPoint file stays editable.
-- **Auto-save** — your deck, theme and chat history are saved in the browser
-  and come back after a page reload.
+### Editing through chat (agentic tool use)
 
----
+You can keep refining the deck in chat: "make slide 3 more concise", "add a
+pricing slide after the intro", "turn this into a table", "move the summary to
+the end". The model picks the tool for the request: `add_slide`,
+`update_slide`, `delete_slide`, `reorder_slides`, `change_layout`, or
+generating a whole new deck.
 
-## 🧪 AI Evals
+Edits are targeted and diff-based. Only the slides you mention change, and the
+rest of the deck, including your manual edits, stays as it was.
 
-Unit tests check the code, but they can't tell you whether the AI behaves
-well, and it doesn't answer the same way every time. So Deck Lab has an eval
-harness (`evals/`): scripts that send real requests to the running app, check
-what the AI actually did, and run every test case 3 times. Results are
-reported as rates with 95% confidence intervals, and each run is saved in its
-own folder so runs can be compared side by side.
+The chat also knows which slide you have open. If you say "change the title to
+X" without naming a slide, it offers to change the open slide and waits for a
+"yes". If you name a slide ("slide 4", or by its title), it edits that slide
+directly.
+
+### Editing by hand (Google Slides-style canvas)
+
+Titles, text, bullets, tables, charts, images and shapes are each a separate
+element. You can select, drag, resize (Shift keeps proportions), nudge with the
+arrow keys or delete any of them, and snapping guides line them up with the
+slide and with each other.
+
+- Insert text boxes, bullet lists, rectangles, ellipses, tables, and images
+  uploaded from your computer.
+- Format text (font size, bold, italic, alignment), set a shape's border
+  colour, switch a chart between bar, line and pie, or replace an image.
+- Click a selected element again (or double-click it) to type into titles,
+  bullets, paragraphs and table cells.
+- Add, delete and drag-to-reorder slides from the thumbnail rail.
+- Start a slide from one of five layouts: title, content, two-column,
+  comparison and table. A layout only sets where elements start, and you can
+  rearrange them freely after that.
+- Undo and redo cover everything. AI and manual changes share one history, so
+  you undo an AI edit the same way you undo your own. Use the toolbar buttons
+  or `⌘Z` / `⌘⇧Z` (`Ctrl+Z` / `Ctrl+Shift+Z` on Windows). While you're typing
+  inside a text box, the shortcut undoes your typing instead.
+- Pick one of five colour themes from a dropdown: Classic Light, Midnight,
+  Corporate Blue, Warm Sand or Forest. A theme changes the slides' background,
+  text, accent and chart colours, and the downloaded files use it too.
+- Download the deck as a PDF or PowerPoint (PPTX) file in one click, with no
+  print dialog. Every element keeps its on-canvas position, formatting and
+  theme. Charts are drawn as vector graphics instead of screenshots, and text
+  in the PowerPoint file stays editable.
+- Your deck, theme and chat history are saved in the browser and come back
+  after a page reload.
+
+## AI evals
+
+Unit tests check the code, but they can't tell you whether the AI behaves well,
+and its answers vary from one run to the next. So Deck Lab has an eval harness
+(`evals/`): scripts that send real requests to the running app, check what the
+AI actually did, and run every test case 3 times. Results are reported as rates
+with 95% confidence intervals, and each run is saved in its own folder so runs
+can be compared side by side.
 
 | Eval                      | What it checks                                                                                                                          |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| **Edit accuracy**         | 61 chat requests: did the AI pick the right tool, change the right slide, leave every other slide alone, and ask when it was ambiguous? |
-| **Targeted vs full deck** | After a manual edit, the same request is done with targeted tool calls and by regenerating the whole deck, on a 6- and a 20-slide deck  |
-| **Deck generation**       | 20 prompts: does each deck arrive, with the exact slide count asked for and the required structure (title, chart, image, closing)?      |
-| **Context growth**        | A scripted 30-message editing conversation, with the chat history capped vs uncapped: how cost grows and whether the AI keeps editing   |
+| Edit accuracy             | 61 chat requests: did the AI pick the right tool, change the right slide, leave every other slide alone, and ask when it was ambiguous? |
+| Targeted vs full deck     | After a manual edit, the same request is done with targeted tool calls and by regenerating the whole deck, on a 6- and a 20-slide deck  |
+| Deck generation           | 20 prompts: does each deck arrive, with the exact slide count asked for and the required structure (title, chart, image, closing)?      |
+| Context growth            | A scripted 30-message editing conversation, with the chat history capped vs uncapped: how cost grows and whether the AI keeps editing   |
 
-Ambiguous requests are partly graded by an **LLM judge** (gpt-4o-mini with a
-written rubric), whose failing verdicts were checked by hand.
+Ambiguous requests are graded partly by an LLM judge (gpt-4o-mini with a
+written rubric). Its failing verdicts were checked by hand.
 
 ### Latest results
 
@@ -119,13 +121,13 @@ written rubric), whose failing verdicts were checked by hand.
 
 On a small deck, regenerating everything is slightly cheaper, because each
 targeted request carries the tool definitions. As decks grow, the full rewrite
-has to send and return every slide, so targeted edits become cheaper and
-several times faster. And they're the only approach that keeps manual layout
+has to send and return every slide, so targeted edits get cheaper and several
+times faster, on top of being the only approach that keeps manual layout
 changes.
 
-The edit and conversation figures are from the latest run, after the last
-fix. The targeted-vs-full-deck and generation figures are from the previous
-full run; those two evals weren't re-run after it.
+The edit and conversation figures come from the latest run, after the last
+fix. The targeted-vs-full-deck and generation figures come from the full run
+before that, because those two evals weren't re-run afterwards.
 
 ### Results run by run
 
@@ -144,26 +146,25 @@ tests in every column, and each test is tried 3 times.
 | New decks following the required structure                     | –                          | 88%                   | 70%            | **93%**        | –              |
 | Targeted edits that made the requested change (20-slide deck)  | –                          | 86%                   | 97%            | **75%**        | –              |
 
-**What each run was**
+What changed in each run:
 
-- **Run 1 — First measurement:** the app as built, with the first version of
-  the tests.
-- **Run 2 — Better tests:** the app was unchanged; only the tests improved. A
-  broken test was fixed, and new checks were added: a 20-slide deck, manual
+- Run 1, first measurement: the app as built, with the first version of the
+  tests.
+- Run 2, better tests: the app was unchanged and only the tests improved. A
+  broken test was fixed, and new checks were added for a 20-slide deck, manual
   layout edits, requests made while a slide is selected, and a stricter check
-  for ambiguous requests. Differences from Run 1 are measurement noise, not
-  changes in the app.
-- **Run 3 — Fix 1:** rewrote the AI's rules for named vs selected slides, made
-  its answers more consistent (lower temperature), made slide counts exact and
-  labelled invented chart figures as illustrative. Slide counts jumped, but
-  the deck structure dropped. The tests caught it.
-- **Run 4 — Fix 2:** removed an example question the AI was copying word for
-  word, stopped showing the AI which slide is selected when you name one,
-  restored the required deck structure, and tidied small mistakes in the AI's
-  edits instead of rejecting them. The "slide is open" bug was fixed, but
-  subjective edits got worse.
-- **Run 5 — Fix 3:** the "ask before editing" rule is now only given to the AI
-  when it actually applies. Subjective edits and long conversations recovered.
+  for ambiguous requests. Any difference from Run 1 is measurement noise.
+- Run 3, fix 1: rewrote the AI's rules for named vs selected slides, lowered
+  the temperature so its answers are more consistent, made slide counts exact
+  and labelled invented chart figures as illustrative. Slide counts jumped but
+  deck structure dropped, which the tests caught.
+- Run 4, fix 2: removed an example question the AI was copying word for word,
+  stopped showing the AI which slide is selected when you name one, restored
+  the required deck structure, and tidied small mistakes in the AI's edits
+  instead of rejecting them. That fixed the "slide is open" bug, but subjective
+  edits got worse.
+- Run 5, fix 3: the "ask before editing" rule is now only given to the AI when
+  it actually applies, and subjective edits and long conversations recovered.
   Only the edit and conversation tests were re-run.
 
 "–" means the test didn't exist yet in that run, or wasn't re-run. Bold marks
@@ -199,11 +200,9 @@ Useful flags: `--runs N` (default 3), `--filter <term>` to run only matching
 cases (comma-separate several terms), and `--base-url` if the app isn't on
 `localhost:3000`.
 
----
+## Getting started
 
-## 🚀 Getting Started
-
-**Prerequisites:** Node.js 20+, npm and an
+You'll need Node.js 20+, npm and an
 [OpenAI API key](https://platform.openai.com/api-keys).
 
 ```bash
@@ -239,29 +238,25 @@ Then open [http://localhost:3000](http://localhost:3000).
 | `npm run lint`   | Lint the codebase        |
 | `npm run format` | Format with Prettier     |
 
----
+## Tech stack
 
-## 🛠️ Tech Stack
+| Area        | Technologies                                                            |
+| ----------- | ----------------------------------------------------------------------- |
+| Language    | TypeScript                                                              |
+| Framework   | Next.js 16 (App Router, Route Handlers), React 19                       |
+| Styling     | Tailwind CSS v4                                                         |
+| State       | Zustand (with `persist` middleware + custom undo/redo history)          |
+| AI          | OpenAI API: GPT-4o (structured outputs, function calling), gpt-image-2  |
+| Validation  | Zod, JSON Schema                                                        |
+| Streaming   | Server-Sent Events (SSE), custom incremental JSON parser                |
+| Charts      | Recharts                                                                |
+| Drag & drop | dnd-kit                                                                 |
+| Export      | pptxgenjs (PowerPoint), jsPDF + jspdf-autotable (PDF)                   |
+| Testing     | Vitest, jsdom, custom AI eval harness                                   |
+| Tooling     | ESLint, Prettier                                                        |
+| Deployment  | Vercel                                                                  |
 
-| Area            | Technologies                                                            |
-| --------------- | ----------------------------------------------------------------------- |
-| **Language**    | TypeScript                                                              |
-| **Framework**   | Next.js 16 (App Router, Route Handlers), React 19                       |
-| **Styling**     | Tailwind CSS v4                                                         |
-| **State**       | Zustand (with `persist` middleware + custom undo/redo history)          |
-| **AI**          | OpenAI API — GPT-4o (structured outputs, function calling), gpt-image-2 |
-| **Validation**  | Zod, JSON Schema                                                        |
-| **Streaming**   | Server-Sent Events (SSE), custom incremental JSON parser                |
-| **Charts**      | Recharts                                                                |
-| **Drag & drop** | dnd-kit                                                                 |
-| **Export**      | pptxgenjs (PowerPoint), jsPDF + jspdf-autotable (PDF)                   |
-| **Testing**     | Vitest, jsdom, custom AI eval harness                                   |
-| **Tooling**     | ESLint, Prettier                                                        |
-| **Deployment**  | Vercel                                                                  |
-
----
-
-## 🏗️ How It Works
+## How it works
 
 ```
  ┌───────────────┐   prompt + deck + history   ┌────────────────────┐
@@ -282,31 +277,31 @@ Then open [http://localhost:3000](http://localhost:3000).
 Every chat message goes to one endpoint, `/api/chat`, and the model decides
 what kind of work it is.
 
-1. **The request** — the chat panel sends your message together with the
-   current deck, the slide you have open and the recent conversation. The
-   deck is summarised compactly (each slide's id, layout, title and a short
-   content summary), so the model can refer to exact slides without the full
-   deck filling its context. Only the last 10 chat messages are resent, which
-   keeps cost flat as a conversation grows.
-2. **Generation (a new deck)** — if you're asking for a new presentation, the
-   model calls `generate_deck`. The server then makes one structured-output
-   call that returns the whole deck as JSON matching a strict schema. That
-   response is parsed _while it streams_: each slide is sent to the browser
-   the moment its JSON closes, which is why slides appear one by one.
-3. **Refinement (targeted edits)** — for anything else, the model calls one or
-   more small tools such as `update_slide` or `reorder_slides`. Each tool call
-   is checked against a schema on the server before it's sent on. Small
-   flaws, such as an empty bullet, are tidied up rather than failing the whole
-   edit; anything still invalid is rejected and reported, never applied.
-4. **Applying the change** — the browser applies each tool call through the
-   same store actions that manual editing uses. That's what makes AI and
-   manual edits safe together: there is only one way to change the deck, so
-   every change lands in the same undo history and is saved the same way.
-5. **Images** — slides land immediately with a placeholder. Images are
-   generated in the background through a separate route and patched into the
-   right slide when ready, even if you've edited the deck in the meantime.
-6. **Export** — the PDF and PowerPoint exporters redraw every slide from the
-   deck data (element positions, styles and theme), rather than taking
-   screenshots of the page.
+1. The chat panel sends your message along with the current deck, the slide
+   you have open and the recent conversation. The deck is summarised compactly
+   (each slide's id, layout, title and a short content summary), so the model
+   can refer to exact slides without the full deck filling its context. Only
+   the last 10 chat messages are resent, which keeps cost flat as a
+   conversation grows.
+2. If you're asking for a new presentation, the model calls `generate_deck`.
+   The server then makes one structured-output call that returns the whole
+   deck as JSON matching a strict schema. That response is parsed while it
+   streams, and each slide is sent to the browser as soon as its JSON closes,
+   which is why slides appear one by one.
+3. Anything else is a targeted edit: the model calls one or more small tools
+   such as `update_slide` or `reorder_slides`. The server checks each tool
+   call against a schema before passing it on. Small flaws, such as an empty
+   bullet, are tidied up instead of failing the whole edit. Anything still
+   invalid is rejected and reported, never applied.
+4. The browser applies each tool call through the same store actions that
+   manual editing uses. That's what lets AI and manual edits live together:
+   there is only one way to change the deck, so every change lands in the same
+   undo history and is saved the same way.
+5. Slides land immediately with a placeholder. Images are generated in the
+   background through a separate route and patched into the right slide when
+   they're ready, even if you've edited the deck in the meantime.
+6. The PDF and PowerPoint exporters redraw every slide from the deck data
+   (element positions, styles and theme) instead of taking screenshots of the
+   page.
 
 The OpenAI API key is only ever read on the server.
