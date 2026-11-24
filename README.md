@@ -179,7 +179,7 @@ written rubric), whose failing verdicts were checked by hand.
 
 | Metric                                               | Result                            |
 | ---------------------------------------------------- | --------------------------------- |
-| Edit requests handled correctly                      | 95.6% (61 requests × 3 runs)      |
+| Edit requests handled correctly                      | 100% (61 requests × 3 runs)       |
 | Other slides left untouched by an edit               | 100%                              |
 | Manual layout edits kept (targeted vs full deck)     | 100% vs 0%                        |
 | Time per edit, 20-slide deck (targeted vs full deck) | 1.2 s vs 6.4 s (median)           |
@@ -187,13 +187,17 @@ written rubric), whose failing verdicts were checked by hand.
 | New decks with the exact slide count asked for       | 89%                               |
 | New decks following the required structure           | 93%                               |
 | Time until the first slide appears                   | ~1.1 s (median); full deck ~3.7 s |
-| Turns that made an edit in a 30-message conversation | ~60%                              |
+| Turns that made an edit in a 30-message conversation | 90% (history capped)              |
 
 On a small deck, regenerating everything is slightly cheaper, because each
 targeted request carries the tool definitions. As decks grow, the full rewrite
 has to send and return every slide, so targeted edits become cheaper and
 several times faster. And they're the only approach that keeps manual layout
 changes.
+
+The edit and conversation figures are from the latest run, after the last
+fix. The targeted-vs-full-deck and generation figures are from the previous
+full run; those two evals weren't re-run after it.
 
 ### What the evals caught and fixed
 
@@ -203,8 +207,10 @@ has a single cause.
 
 | Same tests, before fixes → now                         | Before | Now   |
 | ------------------------------------------------------ | ------ | ----- |
-| Edit requests handled correctly (51 requests × 3 runs) | 88.2%  | 94.8% |
+| Edit requests handled correctly (51 requests × 3 runs) | 88.2%  | 100%  |
 | Editing a named slide while that same slide is open    | 10/15  | 15/15 |
+| Subjective edits on a named slide (“more concise”)     | 4/9    | 9/9   |
+| Turns that made an edit in a 30-message conversation   | 51%    | 90%   |
 | AI claiming a slide was selected when none was         | 3/9    | 0/9   |
 | New decks with the exact slide count asked for         | 73%    | 89%   |
 | Edits rejected because the AI sent invalid arguments   | 1.5%   | 0%    |
