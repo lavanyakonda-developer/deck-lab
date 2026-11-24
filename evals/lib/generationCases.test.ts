@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Deck, Slide } from "@/lib/schema/slide";
-import { materializeSlide } from "@/lib/slides/layoutEngine";
+import { getSlideContent, materializeSlide } from "@/lib/slides/layoutEngine";
 import { estimateCostUsd, priceFor } from "../pricing";
 import {
   loadGenerationCases,
@@ -123,24 +123,23 @@ describe("scoreGenerationRun", () => {
 });
 
 describe("structureProblems", () => {
+  const content = (list: Slide[]) => list.map((sl) => getSlideContent(sl));
   const closing = materializeSlide(
     { type: "content", title: "Thanks", body: [] },
     "s4",
   );
 
   it("accepts title first, one chart and one image on different middle slides, closing last", () => {
-    expect(
-      structureProblems({ ...deck, slides: [...slides, closing] }),
-    ).toEqual([]);
+    expect(structureProblems(content([...slides, closing]))).toEqual([]);
   });
 
   it("names each broken rule", () => {
     // 3 slides: the image slide is also the last slide.
-    expect(structureProblems(deck)).toEqual([
+    expect(structureProblems(content(deck.slides))).toEqual([
       "image on the last slide",
       "3 slides (the structure needs 4)",
     ]);
-    const noTitle = { ...deck, slides: [slides[1], slides[2], closing] };
+    const noTitle = content([slides[1], slides[2], closing]);
     expect(structureProblems(noTitle)).toContain("chart on the first slide");
     expect(structureProblems(noTitle)).toContain(
       "first slide is not a title slide",
@@ -159,17 +158,14 @@ describe("structureProblems", () => {
       },
       "s5",
     );
-    const problems = structureProblems({
-      ...deck,
-      slides: [slides[0], slides[1], both, closing],
-    });
+    const problems = structureProblems(
+      content([slides[0], slides[1], both, closing]),
+    );
     expect(problems).toEqual([
       "2 chart blocks (expected 1)",
       "chart and image on the same slide (3)",
     ]);
-    expect(
-      structureProblems({ ...deck, slides: [slides[0], closing, closing] }),
-    ).toEqual(
+    expect(structureProblems(content([slides[0], closing, closing]))).toEqual(
       expect.arrayContaining([
         "0 chart blocks (expected 1)",
         "0 image blocks (expected 1)",
@@ -177,12 +173,40 @@ describe("structureProblems", () => {
     );
   });
 
+  it("checks a requested count under 4 against title, chart, image in that order", () => {
+    expect(structureProblems(content(slides), 3)).toEqual([]);
+    expect(structureProblems(content(slides.slice(0, 2)), 2)).toEqual([]);
+    expect(structureProblems(content(slides.slice(0, 1)), 1)).toEqual([]);
+
+    // Image before chart, and a chart kept in a 1-slide deck.
+    expect(
+      structureProblems(content([slides[0], slides[2], slides[1]]), 3),
+    ).toEqual(["no chart on slide 2", "no image on slide 3"]);
+    expect(structureProblems(content(slides.slice(0, 2)), 1)).toEqual([
+      "2 slides (a 1-slide deck is title)",
+      "1 chart blocks (expected 0)",
+    ]);
+    // A 2-slide request must drop the image.
+    expect(structureProblems(content(slides), 2)).toEqual([
+      "3 slides (a 2-slide deck is title, chart)",
+      "1 image blocks (expected 0)",
+    ]);
+  });
+
+  it("applies the full structure unchanged to a requested count of 4 or more", () => {
+    expect(structureProblems(content(slides), 4)).toEqual(
+      structureProblems(content(slides)),
+    );
+    expect(structureProblems(content([...slides, closing]), 4)).toEqual([]);
+  });
+
   it("is recorded on every successful run, with the slide content", () => {
     const score = scoreGenerationRun(
       asksForThree,
       stream(["done", { deck }, 100]),
     );
-    expect(score.structureProblems).toHaveLength(2);
+    // A 3-slide request: title, chart, image is the expected structure.
+    expect(score.structureProblems).toEqual([]);
     expect(score.slides?.map((s) => s.title)).toEqual([
       "Intro",
       "Numbers",

@@ -131,6 +131,10 @@ function buildSummary(
   const clarifyRuns = all.filter((s) => s.kind === "clarify");
   const changedRuns = toolRuns.filter((s) => s.preserved !== undefined);
   const toolRunsLabel = `${toolCaseCount} tool cases × ${runs} runs`;
+  const noSelectionIds = new Set(
+    cases.filter((c) => !c.selectedSlideId).map((c) => c.id),
+  );
+  const noSelectionRuns = all.filter((s) => noSelectionIds.has(s.caseId));
   const casesPassingAllRuns = [...scoresByCase.values()].filter(
     (scores) => scores.length > 0 && scores.every((s) => s.passed),
   ).length;
@@ -183,6 +187,14 @@ function buildSummary(
         ),
         "100%",
         `${clarifyCaseCount} ambiguous cases × ${runs} runs`,
+      ],
+      [
+        "Invented selection",
+        formatRateWithInterval(
+          noSelectionRuns.map((s) => s.inventedSelection !== undefined),
+        ),
+        "0%",
+        `${noSelectionRuns.length} runs of cases with no slide selected`,
       ],
       [
         "Overall pass rate",
@@ -273,6 +285,13 @@ function buildSummary(
       return `- **${s.caseId}** (${s.strictClarify!.method}): ${s.strictClarify!.reason} — reply: "${shortReply}"`;
     });
   const judgeLine = judgeUsageLine(all);
+  const invented = noSelectionRuns
+    .filter((s) => s.inventedSelection !== undefined)
+    .map((s) => {
+      const reply = s.reply.replace(/\s+/g, " ");
+      const shortReply = reply.length > 160 ? `${reply.slice(0, 160)}…` : reply;
+      return `- **${s.caseId}**: "${s.inventedSelection}" — reply: "${shortReply}"`;
+    });
 
   return [
     "# Edit accuracy",
@@ -302,6 +321,10 @@ function buildSummary(
     "",
     strictFailures.length > 0 ? strictFailures.join("\n") : "None.",
     ...(judgeLine ? ["", judgeLine] : []),
+    "",
+    `## Replies claiming a selected slide when none was selected (${invented.length})`,
+    "",
+    invented.length > 0 ? invented.join("\n") : "None.",
   ].join("\n");
 }
 

@@ -56,19 +56,20 @@ editor does:
 In both, a slide named in the request must be acted on directly, with no
 confirmation question.
 
-| Metric                          | Meaning                                                                                                                                                                                                                                                                                          | Expected            |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------- |
-| Tool accuracy                   | The set of tools called is exactly the expected set (plus any the case lists as `optional`, e.g. an `update_slide` alongside `change_layout`).                                                                                                                                                   | 100%                |
-| Target accuracy                 | Every expected call hit the right target: the right slide id for update/delete/change_layout, the right final position for an added slide, the right final order for a reorder, and any required content (e.g. "has a table") present.                                                           | 100%                |
-| Preservation rate               | Of runs that changed the deck, the share where every slide the request didn't target is deep-equal to before.                                                                                                                                                                                    | 100%                |
-| Answered in text (no tool call) | A tool call was expected, but none arrived and none was rejected: the model replied in text only (a description of the edit, a confirmation question, …).                                                                                                                                        | 0%                  |
-| Invalid tool call               | The model called a tool but the server rejected the arguments. The app reports these as `invalid-tool-call` events (tool + validation error) instead of applying them.                                                                                                                           | 0%                  |
-| Clarification accuracy          | For ambiguous cases: no tool call was made and the reply contains a question.                                                                                                                                                                                                                    | 100%                |
-| Clarification accuracy (strict) | For ambiguous cases, no tool call, and: with a slide selected, the reply names that slide's number ("slide 3") and title, as the system prompt's confirmation asks; with no slide selected, an LLM judge decides the reply asks which slide the user means rather than guessing one (see below). | 100%                |
-| Overall pass rate               | Every check for the case passed in that run.                                                                                                                                                                                                                                                     | 100%                |
-| Cases passing all runs          | Cases that passed in every one of their runs — the stricter, per-case view of the pass rate.                                                                                                                                                                                                     | all cases           |
-| Latency to done (p50 / p95)     | Request start until the `done` event, successful runs only.                                                                                                                                                                                                                                      | – (tracked, no bar) |
-| Errors                          | Runs that ended in an `error` event or HTTP failure.                                                                                                                                                                                                                                             | 0                   |
+| Metric                          | Meaning                                                                                                                                                                                                                                                                                                        | Expected            |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| Tool accuracy                   | The set of tools called is exactly the expected set (plus any the case lists as `optional`, e.g. an `update_slide` alongside `change_layout`).                                                                                                                                                                 | 100%                |
+| Target accuracy                 | Every expected call hit the right target: the right slide id for update/delete/change_layout, the right final position for an added slide, the right final order for a reorder, and any required content (e.g. "has a table") present.                                                                         | 100%                |
+| Preservation rate               | Of runs that changed the deck, the share where every slide the request didn't target is deep-equal to before.                                                                                                                                                                                                  | 100%                |
+| Answered in text (no tool call) | A tool call was expected, but none arrived and none was rejected: the model replied in text only (a description of the edit, a confirmation question, …).                                                                                                                                                      | 0%                  |
+| Invalid tool call               | The model called a tool but the server rejected the arguments. The app reports these as `invalid-tool-call` events (tool + validation error) instead of applying them.                                                                                                                                         | 0%                  |
+| Clarification accuracy          | For ambiguous cases: no tool call was made and the reply contains a question.                                                                                                                                                                                                                                  | 100%                |
+| Clarification accuracy (strict) | For ambiguous cases, no tool call, and: with a slide selected, the reply names that slide's number ("slide 3") and title, as the system prompt's confirmation asks; with no slide selected, an LLM judge decides the reply asks which slide the user means rather than guessing one (see below).               | 100%                |
+| Invented selection              | Over replies to every case sent with no selected slide: the reply says or implies a slide is selected ("currently selected", "shown as selected", "the selected slide", "you're viewing slide N"). A rule check in `evals/lib/inventedSelection.ts`, not the judge; matched phrases are listed in the summary. | 0%                  |
+| Overall pass rate               | Every check for the case passed in that run.                                                                                                                                                                                                                                                                   | 100%                |
+| Cases passing all runs          | Cases that passed in every one of their runs — the stricter, per-case view of the pass rate.                                                                                                                                                                                                                   | all cases           |
+| Latency to done (p50 / p95)     | Request start until the `done` event, successful runs only.                                                                                                                                                                                                                                                    | – (tracked, no bar) |
+| Errors                          | Runs that ended in an `error` event or HTTP failure.                                                                                                                                                                                                                                                           | 0                   |
 
 Overall rates are shown with a 95% Wilson interval. The summary also has a
 per-category breakdown and lists every case that failed in any run, with
@@ -79,12 +80,16 @@ pass/fail.
 
 **The clarify judge.** For ambiguous requests with no slide selected, the
 reply is graded by `JUDGE_MODEL` from `evals/pricing.ts` (gpt-4o-mini) at
-temperature 0, with the rubric in `evals/lib/judge.ts`: pass only if the
-reply asks which slide the user means (listing candidates is fine); fail if
-it picks or assumes one slide, even to confirm it. The judge's verdict and
-reason are saved in the raw results. Its tokens and estimated cost are
-reported on their own line and never added to the app's figures. A judge
-error counts as a strict failure and is listed with its reason.
+temperature 0, with the rubric in `evals/lib/judge.ts`: pass if the reply
+asks which slide the user means (listing candidates is fine), or - when the
+request could apply to the whole deck, like "make it better" - if it asks
+what the user wants changed without picking a slide; fail if it picks or
+assumes one slide, even to confirm it. The saved run-2b summary was graded
+with the first version of the rubric, which only accepted asking which
+slide. The judge's verdict and reason are saved in the raw results. Its
+tokens and estimated cost are reported on their own line and never added
+to the app's figures. A judge error counts as a strict failure and is
+listed with its reason.
 
 ## Tool calling vs. full-deck baseline — `npm run eval:baseline`
 
@@ -145,8 +150,14 @@ Most prompts state a slide count (`expectedSlides`); a few leave it open.
 The generation prompt (`lib/ai/generateDeck.ts`) requires a structure for
 every deck: a title slide first, exactly one chart block and exactly one
 image block on two different slides, neither on the first or last slide,
-and a closing slide last — so at least 4 slides. A prompt asking for fewer
-than 4 slides cannot meet both its count and this structure.
+and a closing slide last — so at least 4 slides. This applies to every
+deck with no requested count or a requested count of 4 or more.
+
+A requested count under 4 drops parts in a fixed order (closing slide,
+then image, then chart), and the check expects exactly that many slides in
+this order: 3 = title, chart, image; 2 = title, chart; 1 = title. Summaries
+from runs before run-4 used the full structure for every deck, so a
+3-slide request always failed it there.
 
 | Metric                           | Meaning                                                                                                   | Expected        |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------- | --------------- |

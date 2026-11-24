@@ -41,6 +41,12 @@ describe("buildClarifyJudgeMessages", () => {
   it("tells the judge that confirming one guessed slide fails", () => {
     expect(CLARIFY_JUDGE_RUBRIC).toMatch(/picks or assumes one specific slide/);
   });
+
+  it("accepts asking what to change for a request that could cover the whole deck", () => {
+    expect(CLARIFY_JUDGE_RUBRIC).toMatch(
+      /could apply to the whole deck[\s\S]*asks what the user wants changed, without picking or assuming a specific slide/,
+    );
+  });
 });
 
 describe("parseJudgeVerdict", () => {

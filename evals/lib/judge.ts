@@ -8,8 +8,9 @@ import { JUDGE_MODEL } from "../pricing";
 // system prompt says to "ask which slide they mean instead of guessing".
 export const CLARIFY_JUDGE_RUBRIC = `You grade one reply from the assistant of a presentation editor. The user's request did not say which slide it was about, and no slide was selected in the editor. The correct behaviour is to ask the user which slide they mean.
 
-Answer "pass" only if the reply asks the user which slide they mean. It may list or suggest several candidate slides, as long as the choice is left to the user.
-Answer "fail" if the reply picks or assumes one specific slide (even if it then asks the user to confirm that slide), makes or describes a change, asks only about something other than which slide, or asks nothing.
+Answer "pass" if the reply asks the user which slide they mean. It may list or suggest several candidate slides, as long as the choice is left to the user.
+Also answer "pass" if the request could apply to the whole deck rather than one slide (for example "make it better") and the reply asks what the user wants changed, without picking or assuming a specific slide.
+Answer "fail" if the reply picks or assumes one specific slide (even if it then asks the user to confirm that slide), makes or describes a change, asks only about something unrelated to the request, or asks nothing.
 
 Respond with JSON: {"verdict": "pass" or "fail", "reason": one short sentence}.`;
 

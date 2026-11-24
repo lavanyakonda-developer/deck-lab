@@ -308,3 +308,33 @@ describe("edit-cases.json", () => {
     }
   });
 });
+
+describe("invented selection", () => {
+  const noSelection: EditCase = {
+    id: "x",
+    category: "ambiguous-no-selection",
+    message: "Change the title to 'Overview'",
+    expect: { clarify: true },
+  };
+  const reply = {
+    reply: 'Slide 2 is currently selected. Update its title to "Overview"?',
+  };
+
+  it("records a selection claim only for cases sent with no selected slide", () => {
+    const result = response(["done", reply]);
+    expect(score(noSelection, result).inventedSelection).toBe(
+      "currently selected",
+    );
+    expect(
+      score({ ...noSelection, selectedSlideId: "slide-2" }, result)
+        .inventedSelection,
+    ).toBeUndefined();
+  });
+
+  it("leaves it unset when the reply makes no such claim", () => {
+    expect(
+      score(noSelection, response(["done", { reply: "Which slide?" }]))
+        .inventedSelection,
+    ).toBeUndefined();
+  });
+});

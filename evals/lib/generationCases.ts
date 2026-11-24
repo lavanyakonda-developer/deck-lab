@@ -63,42 +63,96 @@ export interface GenerationRunScore {
   usage?: TokenUsage;
 }
 
-function blockCount(slide: Slide, type: "chart" | "table" | "image"): number {
-  return slide.elements.filter((el) => el.content.type === type).length;
+function blockCount(
+  slide: SlideContent,
+  type: "chart" | "table" | "image",
+): number {
+  return slide.body.filter((block) => block.type === type).length;
 }
 
 function hasBlock(deck: Deck, type: "chart" | "table" | "image"): boolean {
-  return deck.slides.some((slide) => blockCount(slide, type) > 0);
+  return deck.slides.some(
+    (slide) => blockCount(getSlideContent(slide), type) > 0,
+  );
 }
 
-// The structure lib/ai/generateDeck.ts requires of every generated deck:
-// a title slide first, exactly one chart block and exactly one image block
-// on two different slides, neither of them the first or the last slide
-// (the last slide is the closing slide). That implies at least 4 slides.
-export function structureProblems(deck: Deck): string[] {
+// The parts a deck shorter than the full structure keeps, in order, as
+// lib/ai/generateDeck.ts defines them: the closing slide is dropped first,
+// then the image slide, then the chart slide.
+const SHORT_DECK_PARTS = ["title", "chart", "image"] as const;
+export const FULL_STRUCTURE_MIN_SLIDES = 4;
+
+// The structure lib/ai/generateDeck.ts requires of a generated deck.
+// - No requested count, or a count of 4 or more: a title slide first,
+//   exactly one chart block and exactly one image block on two different
+//   slides, neither of them the first or the last slide (the last slide is
+//   the closing slide). That implies at least 4 slides.
+// - A requested count under 4: exactly that many slides, in the order
+//   title, chart, image (3 = all three, 2 = title + chart, 1 = title).
+export function structureProblems(
+  slides: SlideContent[],
+  requestedCount?: number,
+): string[] {
+  if (
+    requestedCount !== undefined &&
+    requestedCount < FULL_STRUCTURE_MIN_SLIDES
+  ) {
+    return shortDeckProblems(slides, requestedCount);
+  }
   const problems: string[] = [];
-  const last = deck.slides.length - 1;
-  if (deck.slides[0]?.type !== "title") {
+  const last = slides.length - 1;
+  if (slides[0]?.type !== "title") {
     problems.push("first slide is not a title slide");
   }
   for (const type of ["chart", "image"] as const) {
-    const total = deck.slides.reduce((n, s) => n + blockCount(s, type), 0);
+    const total = slides.reduce((n, s) => n + blockCount(s, type), 0);
     if (total !== 1) problems.push(`${total} ${type} blocks (expected 1)`);
-    deck.slides.forEach((slide, i) => {
+    slides.forEach((slide, i) => {
       if (blockCount(slide, type) > 0 && (i === 0 || i === last)) {
         problems.push(`${type} on the ${i === 0 ? "first" : "last"} slide`);
       }
     });
   }
-  const sharedSlide = deck.slides.findIndex(
+  const sharedSlide = slides.findIndex(
     (s) => blockCount(s, "chart") > 0 && blockCount(s, "image") > 0,
   );
   if (sharedSlide !== -1) {
     problems.push(`chart and image on the same slide (${sharedSlide + 1})`);
   }
-  if (deck.slides.length < 4) {
-    problems.push(`${deck.slides.length} slides (the structure needs 4)`);
+  if (slides.length < FULL_STRUCTURE_MIN_SLIDES) {
+    problems.push(`${slides.length} slides (the structure needs 4)`);
   }
+  return problems;
+}
+
+function shortDeckProblems(
+  slides: SlideContent[],
+  requestedCount: number,
+): string[] {
+  const parts = SHORT_DECK_PARTS.slice(0, requestedCount);
+  const problems: string[] = [];
+  if (slides.length !== requestedCount) {
+    problems.push(
+      `${slides.length} slides (a ${requestedCount}-slide deck is ${parts.join(", ")})`,
+    );
+  }
+  if (slides[0]?.type !== "title") {
+    problems.push("first slide is not a title slide");
+  }
+  (["chart", "image"] as const).forEach((type) => {
+    const expectedIndex = parts.indexOf(type);
+    const total = slides.reduce((n, s) => n + blockCount(s, type), 0);
+    const expected = expectedIndex === -1 ? 0 : 1;
+    if (total !== expected) {
+      problems.push(`${total} ${type} blocks (expected ${expected})`);
+    }
+    if (expectedIndex !== -1) {
+      const slide = slides[expectedIndex];
+      if (slide && blockCount(slide, type) === 0) {
+        problems.push(`no ${type} on slide ${expectedIndex + 1}`);
+      }
+    }
+  });
   return problems;
 }
 
@@ -140,6 +194,7 @@ export function scoreGenerationRun(
     };
   }
 
+  const slides = deck.slides.map((slide) => getSlideContent(slide));
   return {
     ...base,
     success: true,
@@ -151,8 +206,8 @@ export function scoreGenerationRun(
     hasChart: hasBlock(deck, "chart"),
     hasTable: hasBlock(deck, "table"),
     hasImage: hasBlock(deck, "image"),
-    structureProblems: structureProblems(deck),
-    slides: deck.slides.map((slide) => getSlideContent(slide)),
+    structureProblems: structureProblems(slides, testCase.expectedSlides),
+    slides,
     streamConsistent:
       streamed.length === deck.slides.length &&
       streamed.every((slide, i) => slide.id === deck.slides[i].id),

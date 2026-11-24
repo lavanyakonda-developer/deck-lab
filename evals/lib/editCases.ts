@@ -5,6 +5,7 @@ import type { ValidatedToolCall } from "@/lib/ai/tools";
 import type { Deck } from "@/lib/schema/slide";
 import { getSlideContent } from "@/lib/slides/layoutEngine";
 import { changedNonTargetSlides } from "./compare";
+import { claimedSelection } from "./inventedSelection";
 import { eventsOfType, type SSEResult } from "./sse";
 import type { StrictClarifyResult } from "./strictClarify";
 
@@ -115,6 +116,9 @@ export interface EditRunScore {
   // Calls the server rejected, as "tool: validation error".
   invalidCalls: string[];
   reply: string;
+  // Only for cases sent with no selected slide: the phrase in the reply
+  // that claims a slide is selected anyway (see inventedSelection.ts).
+  inventedSelection?: string;
   latencyMs: number;
   error?: string;
   // Tool cases only.
@@ -280,6 +284,9 @@ export function scoreEditRun(
       "invalid-tool-call",
     ).map((c) => `${c.tool}: ${c.error}`),
     reply: done?.reply ?? "",
+    inventedSelection: testCase.selectedSlideId
+      ? undefined
+      : claimedSelection(done?.reply ?? ""),
     latencyMs:
       result.events.find((e) => e.event === "done")?.t ?? result.totalMs,
     error,
