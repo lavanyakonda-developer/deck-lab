@@ -60,3 +60,48 @@ export function serializeDeckContext(
 
   return `Deck "${deck.title}" (id="${deck.id}") — ${deck.slides.length} slide(s):\n${lines.join("\n")}`;
 }
+
+const ORDINAL_WORDS = [
+  "first",
+  "second",
+  "third",
+  "fourth",
+  "fifth",
+  "sixth",
+  "seventh",
+  "eighth",
+  "ninth",
+  "tenth",
+  "eleventh",
+  "twelfth",
+  "thirteenth",
+  "fourteenth",
+  "fifteenth",
+  "sixteenth",
+  "seventeenth",
+  "eighteenth",
+  "nineteenth",
+  "twentieth",
+];
+
+// Whether `message` names a slide of `deck` explicitly: by number ("slide
+// 3", "slide #3", "3rd slide", "third slide") or by containing a slide's
+// exact current title (case-insensitive). When it does, the chat route
+// leaves the selection marker out of the deck context, so the model can't
+// mistake an explicitly named slide for the confirm-first case. Slides
+// named only by description ("the pricing slide") aren't detected here -
+// the system prompt's rule covers those.
+export function messageNamesSlide(message: string, deck: Deck): boolean {
+  const text = message.toLowerCase();
+  if (/\bslides?\s*(?:#|no\.?|number)?\s*\d+\b/.test(text)) return true;
+  if (/\b\d+(?:st|nd|rd|th)\s+slide\b/.test(text)) return true;
+  if (
+    new RegExp(`\\b(?:${ORDINAL_WORDS.join("|")}|last)\\s+slide\\b`).test(text)
+  ) {
+    return true;
+  }
+  return deck.slides.some((slide) => {
+    const title = getSlideContent(slide).title.trim().toLowerCase();
+    return title.length > 0 && text.includes(title);
+  });
+}

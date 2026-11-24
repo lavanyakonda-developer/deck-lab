@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { DeckSchema } from "@/lib/schema/slide";
 import { getSlideTitle } from "@/lib/slides/layoutEngine";
-import { serializeDeckContext } from "@/lib/ai/deckContext";
+import { messageNamesSlide, serializeDeckContext } from "@/lib/ai/deckContext";
 import { generateDeckStreamed } from "@/lib/ai/generateDeckStream";
 import { getMaxHistoryMessages, trimHistory } from "@/lib/ai/historyLimit";
 import { getOpenAIClient, OPENAI_MODEL } from "@/lib/ai/openaiClient";
@@ -37,11 +37,16 @@ Rules:
 - change_layout only changes a slide's "type" and layout hints - it does NOT touch body content. If the request implies reshaping the actual content (e.g. "change it to a table", "turn these bullets into a comparison"), you must ALSO call update_slide with a new body containing a properly-shaped content block (e.g. a "table" block with real headers/rows derived from the existing content) in the SAME turn - change_layout alone would leave the old content block behind, rendering nothing.
 - The conversation history below is real - if you previously asked a clarifying question or a confirmation and the user's next message answers it (e.g. a slide number, "yes", "the bullets one"), resolve it using that history and proceed with a tool call. Do not ask the same question again.
 - The "Current deck" section below is always the true, up-to-date state - it already reflects any manual edits the user made directly on the canvas, which you are never told about as a chat message. Never answer a question about a slide's current content (title, text, etc.), or assume what a slide contains, from something you or the user said earlier in this conversation - the deck can change between turns without a chat message announcing it. Always re-check the Current deck section for the current, real content before answering or acting, even if it contradicts what you said in an earlier turn.
-- If the request doesn't name a specific slide (e.g. "change the title to X", "make this more concise", "add a bullet about pricing") but the deck context below marks one slide as "(currently selected/viewed by the user)", do NOT call a tool yet - first ask for confirmation in your normal text response, naming that slide by its number and title and briefly restating the change (e.g. 'Update slide 3 ("Pricing") - set the title to "1234"?'). Only make the tool call once the user's next message confirms (e.g. "yes", "yep", "correct") - use the conversation history above to see that confirmation, per the rule above. If their reply names a different slide or corrects the change instead of confirming, use what they actually said. If no slide is marked as selected and none is named either, ask which slide they mean instead of guessing.
-- The "(currently selected/viewed by the user)" marker is ONLY a fallback for the case above, where the request names no slide at all. It must NEVER override a slide the user explicitly named (by number, title, or clear description) in their message, even when that named slide is different from the one currently selected. Example: if slide 3 is marked selected but the user says "delete slide 10", operate on slide 10 - the selected slide is irrelevant to that request.
+- If the user's message names a slide - by number ("slide 3"), by title, or by a clear description ("the pricing slide") - act on that slide directly with the tool call. Do NOT ask for confirmation first. This holds whether or not any slide is marked as selected, and whether the named slide is the selected one or a different one. The selection marker never overrides, and never adds a confirmation step to, a slide the user named. Example: if slide 3 is marked selected and the user says "change the title of slide 3 to X" or "delete slide 10", make that tool call on slide 3 or slide 10 right away.
+- Only when the message names NO slide (e.g. "change the title to X", "make this more concise", "add a bullet about pricing") and the deck context below marks one slide as "(currently selected/viewed by the user)": do NOT call a tool yet. First ask for confirmation in your normal text response, as one short question that names the marked slide by its number (as "slide N") and its exact current title, and briefly restates the change you would make. Only make the tool call once the user's next message confirms (e.g. "yes", "yep", "correct") - use the conversation history above to see that confirmation, per the rule above. If their reply names a different slide or corrects the change instead of confirming, use what they actually said.
+- Only when the message names no slide AND no slide at all in the deck context is marked "(currently selected/viewed by the user)": the user has no slide selected, so ask which slide they mean. In that case only, never say, suggest, or assume that any slide is selected, current, open, or being viewed, and never propose one particular slide as the likely target - leave the choice to the user. This rule never applies when a slide IS marked - then use the confirmation rule above.
 - If the request is ambiguous or could reasonably mean several different things, ask a clarifying question in your normal text response instead of guessing with a tool call.
 - Never claim in your text response that you performed an action - reordered, added, deleted, updated, or changed the layout of a slide - unless you actually called the corresponding tool in this SAME response. Saying "Done" or describing a change without the matching tool call leaves the deck completely unchanged while telling the user otherwise - if a request calls for a change, make the tool call; only describe it as done once you have.
-- Body content blocks: "bullets" and "paragraph" are the default. Use a "table" block for tabular data, a "chart" block (chartType "bar"/"line"/"pie", data as [{label, value}]) for quantitative content the user asks to visualize (e.g. "show this as a chart"), and an "image" block (only "alt" describing what's wanted - you never provide a "url", the actual image is generated afterward via a separate call) when the user explicitly asks for an image/photo/picture.`;
+- Body content blocks: "bullets" and "paragraph" are the default. Use a "table" block for tabular data, a "chart" block (chartType "bar"/"line"/"pie", data as [{label, value}]) for quantitative content the user asks to visualize (e.g. "show this as a chart") - use the user's or the deck's own figures when there are any and don't call them illustrative; if you have to invent the figures, set the chart's caption to say so (e.g. "Illustrative figures"), and an "image" block (only "alt" describing what's wanted - you never provide a "url", the actual image is generated afterward via a separate call) when the user explicitly asks for an image/photo/picture.`;
+
+// Low but non-zero: tool choice and targeting should be close to
+// deterministic, while replies and generated content keep some variety.
+const CHAT_TEMPERATURE = 0.2;
 
 function buildSystemPrompt(deckContext: string): string {
   return `${SYSTEM_INSTRUCTIONS}\n\nCurrent deck:\n${deckContext}`;
@@ -125,7 +130,12 @@ export async function POST(request: Request) {
       try {
         const client = getOpenAIClient();
         const systemPrompt = buildSystemPrompt(
-          serializeDeckContext(deckResult.data, currentSlideId),
+          serializeDeckContext(
+            deckResult.data,
+            messageNamesSlide(trimmedMessage, deckResult.data)
+              ? null
+              : currentSlideId,
+          ),
         );
         const messages = [
           { role: "system" as const, content: systemPrompt },
@@ -153,6 +163,7 @@ export async function POST(request: Request) {
           model: OPENAI_MODEL,
           messages,
           tools: TOOL_DEFINITIONS,
+          temperature: CHAT_TEMPERATURE,
           stream: true,
           stream_options: { include_usage: true },
         });
@@ -198,9 +209,12 @@ export async function POST(request: Request) {
               if (!checked.ok) {
                 // Not applied, but reported so a rejected call is
                 // distinguishable from the model answering in text.
+                // The arguments exactly as the model sent them, before any
+                // tidying, so a rejection can be diagnosed.
                 emit("invalid-tool-call", {
                   tool: state.name,
                   error: checked.error,
+                  arguments: rawArgs,
                 });
                 continue;
               }

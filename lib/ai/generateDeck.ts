@@ -14,7 +14,9 @@ Choose slide types thoughtfully:
 - "comparison": contrasting exactly two things, same column convention as two-column.
 - "table": tabular data, using a single "table" body block.
 
-Keep bullet items short (a few words to one short sentence). Keep the deck coherent as a whole - it should read like one presentation, not unrelated slides. Unless the user specifies a slide count, use your judgment for a reasonable, focused deck (typically 4-8 slides).
+Keep bullet items short (a few words to one short sentence). Keep the deck coherent as a whole - it should read like one presentation, not unrelated slides.
+
+Slide count: if the user asks for a number of slides, the deck must have exactly that many - whether it's written as digits ("5 slides", "a 5-slide deck") or words ("five slides", "a three-slide deck", "a dozen slides" = 12). If no count is given, use your judgment for a reasonable, focused deck (typically 4-8 slides).
 
 Body content blocks: "bullets" and "paragraph" are the default for most slides. Use a "table" block for genuinely tabular data.
 
@@ -23,8 +25,13 @@ Required deck structure - every deck you generate must follow this shape, regard
 2. Somewhere in the middle: at least one slide whose body includes a "chart" block, and at least one (different) slide whose body includes an "image" block. Exactly one of each by default - don't add a chart or image to every slide, and don't skip either one.
 3. A dedicated closing slide LAST - a brief summary, key takeaway, or "thank you" / "questions" slide. The chart slide and the image slide must both come BEFORE this closing slide, never be the closing slide themselves, and never be the last slide of the deck.
 
+This structure needs 4 slides and is required for every deck of 4 or more slides - a requested count of 4 or more never relaxes it: keep all four parts and fill the rest with content slides. Only for a requested count under 4, drop parts in this order until the deck fits, keeping the order of what remains:
+- 3 slides: drop the closing slide -> title, chart slide, image slide.
+- 2 slides: also drop the image slide -> title, chart slide.
+- 1 slide: also drop the chart slide -> a single title slide.
+
 Rules for the chart and image blocks specifically:
-- "chart" block: chartType "bar"/"line"/"pie", data as [{label, value}] - use real, sensible numbers relevant to the deck's topic (invent plausible illustrative figures if the user didn't supply real data).
+- "chart" block: chartType "bar"/"line"/"pie", data as [{label, value}] - use sensible numbers relevant to the deck's topic. If the user supplied the data, use their figures exactly and do not call them illustrative (the caption may describe the data, or be null). If the user did not supply the data, invent plausible figures AND set the chart's caption to say they are illustrative, e.g. "Illustrative figures" - never present invented numbers as real data.
 - "image" block: only "alt" describing a relevant image for the topic - never a "url", you don't generate the actual image yourself; it's generated afterward via a separate slow call and shows a placeholder until then, so one image slide is enough.`;
 
 export async function generateDeckFromPrompt(prompt: string): Promise<Deck> {

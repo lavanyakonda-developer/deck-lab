@@ -211,6 +211,7 @@ describe("POST /api/chat", () => {
     expect(invalid).toHaveLength(1);
     expect(invalid[0].data).toMatchObject({ tool: "delete_slide" });
     expect((invalid[0].data as { error: string }).error).toContain("id");
+    expect(invalid[0].data).toMatchObject({ arguments: {} });
     expect(events.at(-1)).toEqual({
       event: "done",
       data: { reply: "I didn't make any changes." },
@@ -495,6 +496,87 @@ describe("POST /api/chat", () => {
     expect(instructions).toMatch(/do NOT call a tool yet/i);
     expect(instructions).toMatch(/ask for confirmation/i);
     expect(instructions).not.toMatch(/apply the change to that slide/i);
+  });
+
+  it("instructs the model to act directly on a named slide, whether or not it is the selected one", async () => {
+    mockCreate.mockResolvedValue(makeChunkStream([]));
+    await POST(
+      makeRequest({
+        message: "change the title of slide 2 to X",
+        deck,
+        selectedSlideId: "b",
+      }),
+    );
+
+    const instructions =
+      mockCreate.mock.calls[0][0].messages[0].content.split("Current deck:")[0];
+    expect(instructions).toMatch(/act on that slide directly/i);
+    expect(instructions).toMatch(/Do NOT ask for confirmation first/);
+    expect(instructions).toMatch(
+      /whether the named slide is the selected one or a different one/i,
+    );
+    expect(instructions).toMatch(/Only when the message names NO slide/);
+  });
+
+  it("instructs the model never to claim a selection when no slide is marked", async () => {
+    mockCreate.mockResolvedValue(makeChunkStream([]));
+    await POST(makeRequest({ message: "change the title to X", deck }));
+
+    const instructions =
+      mockCreate.mock.calls[0][0].messages[0].content.split("Current deck:")[0];
+    expect(instructions).toMatch(/the user has no slide selected/i);
+    expect(instructions).toMatch(
+      /never say, suggest, or assume that any slide is selected/i,
+    );
+  });
+
+  it("leaves the selection marker out when the message names a slide by number or title", async () => {
+    mockCreate.mockResolvedValue(makeChunkStream([]));
+    for (const message of [
+      "change the title of slide 1 to X",
+      "make the objectives slide shorter",
+    ]) {
+      await POST(makeRequest({ message, deck, selectedSlideId: "a" }));
+    }
+    for (const call of mockCreate.mock.calls) {
+      expect(
+        call[0].messages[0].content.split("Current deck:")[1],
+      ).not.toContain("currently selected");
+    }
+  });
+
+  it("keeps the selection marker when the message names no slide", async () => {
+    mockCreate.mockResolvedValue(makeChunkStream([]));
+    await POST(
+      makeRequest({
+        message: "change the title to X",
+        deck,
+        selectedSlideId: "a",
+      }),
+    );
+    expect(
+      mockCreate.mock.calls[0][0].messages[0].content.split("Current deck:")[1],
+    ).toMatch(/id="a"[^\n]*\(currently selected\/viewed by the user\)/);
+  });
+
+  it("describes the confirmation format in words, without a literal example", async () => {
+    mockCreate.mockResolvedValue(makeChunkStream([]));
+    await POST(makeRequest({ message: "change the title to X", deck }));
+    const instructions =
+      mockCreate.mock.calls[0][0].messages[0].content.split("Current deck:")[0];
+    expect(instructions).toMatch(
+      /by its number \(as "slide N"\) and its exact current title/,
+    );
+    expect(instructions).not.toMatch(/Update slide \d/);
+    expect(instructions).toMatch(
+      /This rule never applies when a slide IS marked/,
+    );
+  });
+
+  it("sends the chat request at temperature 0.2", async () => {
+    mockCreate.mockResolvedValue(makeChunkStream([]));
+    await POST(makeRequest({ message: "delete slide 2", deck }));
+    expect(mockCreate.mock.calls[0][0].temperature).toBe(0.2);
   });
 
   it("instructs the model to trust the fresh deck context over its own earlier statements in history", async () => {

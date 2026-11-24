@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Deck } from "@/lib/schema/slide";
 import { materializeDeck } from "@/lib/slides/layoutEngine";
-import { serializeDeckContext } from "./deckContext";
+import { messageNamesSlide, serializeDeckContext } from "./deckContext";
 
 const deck: Deck = materializeDeck({
   id: "deck-1",
@@ -85,5 +85,30 @@ describe("serializeDeckContext", () => {
     expect(serializeDeckContext(deck, null)).not.toContain(
       "currently selected",
     );
+  });
+});
+
+describe("messageNamesSlide", () => {
+  it.each([
+    "Change the title of slide 3 to X",
+    "delete slide #2",
+    "Make slides 2 and 3 shorter",
+    "Shorten the 2nd slide",
+    "Rewrite the third slide",
+    "Remove the last slide",
+    "Rename the 'objectives' slide to Goals",
+    "Add a row to DATA",
+  ])("detects a named slide in %j", (message) => {
+    expect(messageNamesSlide(message, deck)).toBe(true);
+  });
+
+  it.each([
+    "Change the title to 'Overview'",
+    "Make this more concise",
+    "Add a bullet about pricing",
+    "Make it better",
+    "Add 3 bullets about pricing",
+  ])("finds no named slide in %j", (message) => {
+    expect(messageNamesSlide(message, deck)).toBe(false);
   });
 });

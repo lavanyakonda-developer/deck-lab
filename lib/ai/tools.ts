@@ -55,7 +55,7 @@ wants substantial changes to the existing presentation.
         prompt: {
           type: "string",
           description:
-            "The topic/brief to generate the new deck from, in the user's own words.",
+            "The topic/brief to generate the new deck from, in the user's own words - including any slide count they asked for.",
         },
       },
       required: ["prompt"],
@@ -392,14 +392,85 @@ const TOOL_ARGS_SCHEMAS: Record<string, z.ZodTypeAny> = {
 export type ToolCallCheck =
   { ok: true; call: ValidatedToolCall } | { ok: false; error: string };
 
+// Top-level keys that mean "leave unchanged" when null. A key the model
+// left out entirely is read the same way, rather than rejecting the call.
+const NULLABLE_KEYS: Record<string, string[]> = {
+  update_slide: ["title", "subtitle", "body", "layout"],
+  change_layout: ["type", "layout"],
+};
+
+type RawBlock = { type?: unknown; items?: unknown; text?: unknown };
+
+// Drops empty bullet items, then bullet blocks left with no items and
+// paragraphs with no text. Strict mode can't enforce these minimums, and
+// one empty bullet would otherwise get the whole call rejected.
+export function dropEmptyContent(blocks: unknown[]): unknown[] {
+  return blocks.flatMap((block) => {
+    if (!block || typeof block !== "object") return [block];
+    const b = block as RawBlock;
+    if (b.type === "bullets" && Array.isArray(b.items)) {
+      const items = b.items.filter(
+        (item) => typeof item !== "string" || item.trim() !== "",
+      );
+      return items.length === 0 ? [] : [{ ...b, items }];
+    }
+    if (
+      b.type === "paragraph" &&
+      typeof b.text === "string" &&
+      b.text.trim() === ""
+    ) {
+      return [];
+    }
+    return [block];
+  });
+}
+
+// Tidies raw tool arguments before validation: fills missing nullable keys
+// with null and drops empty content blocks. Returns an error instead when
+// cleaning would turn a non-empty update_slide body into an empty one -
+// that would wipe the slide's content, which the model never asked for.
+export function prepareToolArgs(
+  name: string,
+  rawArgs: unknown,
+): { args: unknown } | { error: string } {
+  if (!rawArgs || typeof rawArgs !== "object" || Array.isArray(rawArgs)) {
+    return { args: rawArgs };
+  }
+  const args: Record<string, unknown> = { ...rawArgs };
+  for (const key of NULLABLE_KEYS[name] ?? []) {
+    if (!(key in args)) args[key] = null;
+  }
+
+  if (name === "update_slide" && Array.isArray(args.body)) {
+    const cleaned = dropEmptyContent(args.body);
+    if (args.body.length > 0 && cleaned.length === 0) {
+      return {
+        error:
+          "body: every block was empty; rejected instead of clearing the slide",
+      };
+    }
+    args.body = cleaned;
+  }
+  if (name === "add_slide" && args.slide && typeof args.slide === "object") {
+    const slide = args.slide as Record<string, unknown>;
+    if (Array.isArray(slide.body)) {
+      args.slide = { ...slide, body: dropEmptyContent(slide.body) };
+    }
+  }
+  return { args };
+}
+
 // validateToolCall plus the reason a call was rejected, so a dropped call
-// can be reported instead of disappearing.
+// can be reported instead of disappearing. Arguments are tidied first (see
+// prepareToolArgs).
 export function checkToolCall(name: string, rawArgs: unknown): ToolCallCheck {
-  const call = validateToolCall(name, rawArgs);
-  if (call) return { ok: true, call };
   const schema = TOOL_ARGS_SCHEMAS[name];
   if (!schema) return { ok: false, error: `unknown tool "${name}"` };
-  const result = schema.safeParse(rawArgs);
+  const prepared = prepareToolArgs(name, rawArgs);
+  if ("error" in prepared) return { ok: false, error: prepared.error };
+  const call = validateToolCall(name, prepared.args);
+  if (call) return { ok: true, call };
+  const result = schema.safeParse(prepared.args);
   const issues = result.success
     ? "rejected"
     : result.error.issues
