@@ -84,78 +84,6 @@ theme you picked and every element exactly where you placed it.
 
 ---
 
-## 🛠️ Tech Stack
-
-| Area            | Technologies                                                            |
-| --------------- | ----------------------------------------------------------------------- |
-| **Language**    | TypeScript                                                              |
-| **Framework**   | Next.js 16 (App Router, Route Handlers), React 19                       |
-| **Styling**     | Tailwind CSS v4                                                         |
-| **State**       | Zustand (with `persist` middleware + custom undo/redo history)          |
-| **AI**          | OpenAI API — GPT-4o (structured outputs, function calling), gpt-image-2 |
-| **Validation**  | Zod, JSON Schema                                                        |
-| **Streaming**   | Server-Sent Events (SSE), custom incremental JSON parser                |
-| **Charts**      | Recharts                                                                |
-| **Drag & drop** | dnd-kit                                                                 |
-| **Export**      | pptxgenjs (PowerPoint), jsPDF + jspdf-autotable (PDF)                   |
-| **Testing**     | Vitest, jsdom, custom AI eval harness                                   |
-| **Tooling**     | ESLint, Prettier                                                        |
-| **Deployment**  | Vercel                                                                  |
-
----
-
-## 🏗️ How It Works
-
-```
- ┌───────────────┐   prompt + deck + history   ┌────────────────────┐
- │  Chat panel   │ ──────────────────────────▶ │  /api/chat (SSE)   │
- │  (React)      │                             │  OpenAI tool calls │
- │               │ ◀── text · tool-call ·  ─── │                    │
- └──────┬────────┘     slide · done events     └────────────────────┘
-        │ apply each event as it arrives
-        ▼
- ┌───────────────┐   same actions for AI and manual edits
- │  Deck store   │ ◀──────────────────────────── Slide canvas & thumbnails
- │  (Zustand)    │   addSlide · updateSlide · deleteSlide · reorderSlides · changeLayout
- └──────┬────────┘
-        ▼
-  Undo/redo history · localStorage · PDF / PPTX export
-```
-
-Every chat message goes to one endpoint, `/api/chat`, and the model decides
-what kind of work it is.
-
-1. **The request** — the chat panel sends your message together with the
-   current deck, the slide you have open and the recent conversation. The
-   deck is summarised compactly (each slide's id, layout, title and a short
-   content summary), so the model can refer to exact slides without the full
-   deck filling its context. Only the last 10 chat messages are resent, which
-   keeps cost flat as a conversation grows.
-2. **Generation (a new deck)** — if you're asking for a new presentation, the
-   model calls `generate_deck`. The server then makes one structured-output
-   call that returns the whole deck as JSON matching a strict schema. That
-   response is parsed _while it streams_: each slide is sent to the browser
-   the moment its JSON closes, which is why slides appear one by one.
-3. **Refinement (targeted edits)** — for anything else, the model calls one or
-   more small tools such as `update_slide` or `reorder_slides`. Each tool call
-   is checked against a schema on the server before it's sent on. Small
-   flaws, such as an empty bullet, are tidied up rather than failing the whole
-   edit; anything still invalid is rejected and reported, never applied.
-4. **Applying the change** — the browser applies each tool call through the
-   same store actions that manual editing uses. That's what makes AI and
-   manual edits safe together: there is only one way to change the deck, so
-   every change lands in the same undo history and is saved the same way.
-5. **Images** — slides land immediately with a placeholder. Images are
-   generated in the background through a separate route and patched into the
-   right slide when ready, even if you've edited the deck in the meantime.
-6. **Export** — the PDF and PowerPoint exporters redraw every slide from the
-   deck data (element positions, styles and theme), rather than taking
-   screenshots of the page.
-
-The OpenAI API key is only ever read on the server.
-
----
-
 ## 🧪 AI Evals
 
 Unit tests check the code, but they can't tell you whether the AI behaves
@@ -199,21 +127,48 @@ The edit and conversation figures are from the latest run, after the last
 fix. The targeted-vs-full-deck and generation figures are from the previous
 full run; those two evals weren't re-run after it.
 
-### What the evals caught and fixed
+### Results run by run
 
-The evals were run several times, with fixes in between. Measurement changes
-and app changes were never made in the same step, so every change in a score
-has a single cause.
+The tests were re-run after each round of changes. Every row uses the same
+tests in every column, and each test is tried 3 times.
 
-| Same tests, before fixes → now                         | Before | Now   |
-| ------------------------------------------------------ | ------ | ----- |
-| Edit requests handled correctly (51 requests × 3 runs) | 88.2%  | 100%  |
-| Editing a named slide while that same slide is open    | 10/15  | 15/15 |
-| Subjective edits on a named slide (“more concise”)     | 4/9    | 9/9   |
-| Turns that made an edit in a 30-message conversation   | 51%    | 90%   |
-| AI claiming a slide was selected when none was         | 3/9    | 0/9   |
-| New decks with the exact slide count asked for         | 73%    | 89%   |
-| Edits rejected because the AI sent invalid arguments   | 1.5%   | 0%    |
+| Same tests in every run                                        | Run 1<br>First measurement | Run 2<br>Better tests | Run 3<br>Fix 1 | Run 4<br>Fix 2 | Run 5<br>Fix 3 |
+| -------------------------------------------------------------- | -------------------------- | --------------------- | -------------- | -------------- | -------------- |
+| Edit requests handled correctly (48 requests)                  | 93.1%                      | 90.3%                 | 99.3%          | 96.5%          | **100%**       |
+| Editing a named slide while that same slide is open            | –                          | 10/15                 | 9/15           | 15/15          | **15/15**      |
+| Subjective edits on a named slide ("more concise", "punchier") | 3/6                        | 2/6                   | 5/6            | 1/6            | **6/6**        |
+| Turns that made an edit in a 30-message conversation           | 50%                        | 51%                   | 63%            | 62%            | **90%**        |
+| AI claiming a slide was selected when none was                 | –                          | 3/9                   | 0/9            | 0/9            | **0/9**        |
+| Edits rejected because the AI sent invalid arguments           | –                          | 1.5%                  | 0%             | 0%             | **0%**         |
+| New decks with the exact slide count asked for                 | 77%                        | 73%                   | 96%            | **89%**        | –              |
+| New decks following the required structure                     | –                          | 88%                   | 70%            | **93%**        | –              |
+| Targeted edits that made the requested change (20-slide deck)  | –                          | 86%                   | 97%            | **75%**        | –              |
+
+**What each run was**
+
+- **Run 1 — First measurement:** the app as built, with the first version of
+  the tests.
+- **Run 2 — Better tests:** the app was unchanged; only the tests improved. A
+  broken test was fixed, and new checks were added: a 20-slide deck, manual
+  layout edits, requests made while a slide is selected, and a stricter check
+  for ambiguous requests. Differences from Run 1 are measurement noise, not
+  changes in the app.
+- **Run 3 — Fix 1:** rewrote the AI's rules for named vs selected slides, made
+  its answers more consistent (lower temperature), made slide counts exact and
+  labelled invented chart figures as illustrative. Slide counts jumped, but
+  the deck structure dropped. The tests caught it.
+- **Run 4 — Fix 2:** removed an example question the AI was copying word for
+  word, stopped showing the AI which slide is selected when you name one,
+  restored the required deck structure, and tidied small mistakes in the AI's
+  edits instead of rejecting them. The "slide is open" bug was fixed, but
+  subjective edits got worse.
+- **Run 5 — Fix 3:** the "ask before editing" rule is now only given to the AI
+  when it actually applies. Subjective edits and long conversations recovered.
+  Only the edit and conversation tests were re-run.
+
+"–" means the test didn't exist yet in that run, or wasn't re-run. Bold marks
+the latest result for each row. Run 1's conversation test ran once instead of
+3 times.
 
 Full summaries for every run are in [`evals/results/runs/`](evals/results/runs/),
 and every metric is defined, with its expected value, in
@@ -283,3 +238,75 @@ Then open [http://localhost:3000](http://localhost:3000).
 | `npm run test`   | Run unit tests           |
 | `npm run lint`   | Lint the codebase        |
 | `npm run format` | Format with Prettier     |
+
+---
+
+## 🛠️ Tech Stack
+
+| Area            | Technologies                                                            |
+| --------------- | ----------------------------------------------------------------------- |
+| **Language**    | TypeScript                                                              |
+| **Framework**   | Next.js 16 (App Router, Route Handlers), React 19                       |
+| **Styling**     | Tailwind CSS v4                                                         |
+| **State**       | Zustand (with `persist` middleware + custom undo/redo history)          |
+| **AI**          | OpenAI API — GPT-4o (structured outputs, function calling), gpt-image-2 |
+| **Validation**  | Zod, JSON Schema                                                        |
+| **Streaming**   | Server-Sent Events (SSE), custom incremental JSON parser                |
+| **Charts**      | Recharts                                                                |
+| **Drag & drop** | dnd-kit                                                                 |
+| **Export**      | pptxgenjs (PowerPoint), jsPDF + jspdf-autotable (PDF)                   |
+| **Testing**     | Vitest, jsdom, custom AI eval harness                                   |
+| **Tooling**     | ESLint, Prettier                                                        |
+| **Deployment**  | Vercel                                                                  |
+
+---
+
+## 🏗️ How It Works
+
+```
+ ┌───────────────┐   prompt + deck + history   ┌────────────────────┐
+ │  Chat panel   │ ──────────────────────────▶ │  /api/chat (SSE)   │
+ │  (React)      │                             │  OpenAI tool calls │
+ │               │ ◀── text · tool-call ·  ─── │                    │
+ └──────┬────────┘     slide · done events     └────────────────────┘
+        │ apply each event as it arrives
+        ▼
+ ┌───────────────┐   same actions for AI and manual edits
+ │  Deck store   │ ◀──────────────────────────── Slide canvas & thumbnails
+ │  (Zustand)    │   addSlide · updateSlide · deleteSlide · reorderSlides · changeLayout
+ └──────┬────────┘
+        ▼
+  Undo/redo history · localStorage · PDF / PPTX export
+```
+
+Every chat message goes to one endpoint, `/api/chat`, and the model decides
+what kind of work it is.
+
+1. **The request** — the chat panel sends your message together with the
+   current deck, the slide you have open and the recent conversation. The
+   deck is summarised compactly (each slide's id, layout, title and a short
+   content summary), so the model can refer to exact slides without the full
+   deck filling its context. Only the last 10 chat messages are resent, which
+   keeps cost flat as a conversation grows.
+2. **Generation (a new deck)** — if you're asking for a new presentation, the
+   model calls `generate_deck`. The server then makes one structured-output
+   call that returns the whole deck as JSON matching a strict schema. That
+   response is parsed _while it streams_: each slide is sent to the browser
+   the moment its JSON closes, which is why slides appear one by one.
+3. **Refinement (targeted edits)** — for anything else, the model calls one or
+   more small tools such as `update_slide` or `reorder_slides`. Each tool call
+   is checked against a schema on the server before it's sent on. Small
+   flaws, such as an empty bullet, are tidied up rather than failing the whole
+   edit; anything still invalid is rejected and reported, never applied.
+4. **Applying the change** — the browser applies each tool call through the
+   same store actions that manual editing uses. That's what makes AI and
+   manual edits safe together: there is only one way to change the deck, so
+   every change lands in the same undo history and is saved the same way.
+5. **Images** — slides land immediately with a placeholder. Images are
+   generated in the background through a separate route and patched into the
+   right slide when ready, even if you've edited the deck in the meantime.
+6. **Export** — the PDF and PowerPoint exporters redraw every slide from the
+   deck data (element positions, styles and theme), rather than taking
+   screenshots of the page.
+
+The OpenAI API key is only ever read on the server.
